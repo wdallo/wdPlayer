@@ -80,15 +80,32 @@ if (vttPath && vttPath.trim() !== "") {
   subtitles.kind = "captions";
   subtitles.label = "English";
   subtitles.srclang = "en";
-  subtitles.src = vttPath;
-  subtitles.default = true;
+  subtitles.addEventListener("load", () => {
+    // Track loaded successfully — show the CC button
+    ccButton.style.display = "";
+  });
+  subtitles.addEventListener("error", () => {
+    console.warn(
+      "Subtitle track failed to load:",
+      vttPath,
+      "— subtitles disabled.",
+    );
+    // Hide CC button since there's no usable track
+    ccButton.style.display = "none";
+  });
+  // Append first, then set src — ensures the track is in the DOM before loading starts
   video.appendChild(subtitles);
+  subtitles.src = vttPath;
+  // Mode must be "hidden" (not "disabled") to trigger the browser to actually fetch the VTT file
+  // "disabled" = browser skips fetching entirely; "hidden" = loaded but not shown
+  subtitles.track.mode = "hidden";
 }
 
 // Helper to toggle subtitles via keyboard (C key)
+// Only toggles if a valid, loaded track exists
 const toggleSubtitles = () => {
   const track = video.textTracks[0];
-  if (track) {
+  if (track && track.readyState === 2) {
     track.mode = track.mode === "showing" ? "hidden" : "showing";
   }
 };
@@ -132,10 +149,11 @@ volumeSlider.max = 1;
 volumeSlider.step = 0.01;
 volumeSlider.value = 1;
 
-// Create CC Button
+// Create CC Button — hidden by default, shown only if subtitle track loads successfully
 const ccButton = document.createElement("button");
 ccButton.id = "ccButton";
 ccButton.title = "Subtitles";
+ccButton.style.display = "none";
 ccButton.replaceChildren(getIcon("cc"));
 
 // Create Subtitles Menu Container
@@ -153,7 +171,11 @@ const populateSubtitleMenu = () => {
 
   const offBtn = document.createElement("button");
   offBtn.classList.add("subtitle-option");
-  offBtn.innerHTML = `<span class="subtitle-check">${anyActive ? "" : "✓"}</span> None`;
+  const offCheck = document.createElement("span");
+  offCheck.className = "subtitle-check";
+  offCheck.textContent = anyActive ? "" : "✓";
+  offBtn.appendChild(offCheck);
+  offBtn.appendChild(document.createTextNode(" None"));
   offBtn.addEventListener("click", () => {
     for (let i = 0; i < tracks.length; i++) tracks[i].mode = "disabled";
     subtitleMenu.classList.add("hidden");
@@ -164,7 +186,13 @@ const populateSubtitleMenu = () => {
     const isActive = tracks[i].mode === "showing";
     const trackBtn = document.createElement("button");
     trackBtn.classList.add("subtitle-option");
-    trackBtn.innerHTML = `<span class="subtitle-check">${isActive ? "✓" : ""}</span> ${tracks[i].label || `Track ${i + 1}`}`;
+    const trackCheck = document.createElement("span");
+    trackCheck.className = "subtitle-check";
+    trackCheck.textContent = isActive ? "✓" : "";
+    trackBtn.appendChild(trackCheck);
+    trackBtn.appendChild(
+      document.createTextNode(" " + (tracks[i].label || `Track ${i + 1}`)),
+    );
     trackBtn.addEventListener("click", () => {
       for (let j = 0; j < tracks.length; j++)
         tracks[j].mode = i === j ? "showing" : "disabled";
