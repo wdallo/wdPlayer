@@ -4,9 +4,9 @@ const playerWrapper = document.getElementById("wdPlayer");
 // Create skeleton loader
 const skeleton = document.createElement("div");
 skeleton.id = "skeletonLoader";
-const shimmer = document.createElement("div");
-shimmer.className = "shimmer";
-skeleton.appendChild(shimmer);
+const shimmerEl = document.createElement("div");
+shimmerEl.className = "shimmer";
+skeleton.appendChild(shimmerEl);
 playerWrapper.appendChild(skeleton);
 
 // SVG icon definitions for controls
@@ -46,14 +46,13 @@ video.id = "wd";
 video.width = 720;
 video.height = 440;
 video.setAttribute("preload", "metadata");
-video.controls = false;
 playerWrapper.appendChild(video);
 
-// Create the source element
-const sourceMp4 = document.createElement("source");
-sourceMp4.src = "https://www.w3schools.com/html/mov_bbb.mp4";
-sourceMp4.type = "video/mp4";
-video.appendChild(sourceMp4);
+// Create and append the video source
+const source = document.createElement("source");
+source.src = "https://www.w3schools.com/html/mov_bbb.mp4";
+source.type = "video/mp4";
+video.appendChild(source);
 
 // Error handling for empty or broken source
 video.addEventListener(
@@ -100,15 +99,6 @@ if (vttPath && vttPath.trim() !== "") {
   // "disabled" = browser skips fetching entirely; "hidden" = loaded but not shown
   subtitles.track.mode = "hidden";
 }
-
-// Helper to toggle subtitles via keyboard (C key)
-// Only toggles if a valid, loaded track exists
-const toggleSubtitles = () => {
-  const track = video.textTracks[0];
-  if (track && track.readyState === 2) {
-    track.mode = track.mode === "showing" ? "hidden" : "showing";
-  }
-};
 
 // Create the central big play button
 const bigPlayButton = document.createElement("button");
@@ -339,9 +329,7 @@ document.addEventListener("keydown", (e) => {
     case "KeyF":
       toggleFullScreen();
       break;
-    case "KeyC":
-      toggleSubtitles();
-      break;
+
     case "ArrowRight":
       e.preventDefault();
       video.currentTime = Math.min(video.duration, video.currentTime + 5);
