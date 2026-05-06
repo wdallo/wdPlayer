@@ -1,0 +1,148 @@
+#wdPlayer {
+  position: relative;
+  width: 720px;
+  height: 405px; /* Change to 405px for 16:9 ratio */
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  font-family: sans-serif;
+}
+
+#wd {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#controls {
+  position: absolute;
+  bottom: 0; /* Align to bottom */
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  padding: 15px 20px;
+  gap: 15px;
+  /* Shadow background for better visibility over light videos */
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+  transition: opacity 0.4s ease;
+}
+
+#controls button {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  min-width: unset; /* Remove fixed width */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  transition: transform 0.1s;
+}
+
+#controls button:hover {
+  transform: scale(1.1);
+}
+
+#controls button svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+#controls button:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+#controls button:focus-visible {
+  outline: 2px solid #00bfff; /* Optional: keep a visible focus for keyboard users */
+  box-shadow: 0 0 0 2px #00bfff33;
+}
+#timer {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+
+  background: linear-gradient(
+    to right,
+    #ffffff 0%,
+    #ffffff var(--value, 0%),
+    rgba(255, 255, 255, 0.2) var(--value, 0%),
+    rgba(255, 255, 255, 0.2) 100%
+  );
+}
+
+/* Chrome/Safari  */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 12px;
+  width: 12px;
+  background: #fff;
+  border-radius: 50%;
+  border: none;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Firefox  */
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  background: transparent;
+}
+
+#progressBar {
+  flex-grow: 1;
+  accent-color: #fff; /* progress color */
+}
+
+#volumeSlider {
+  width: 60px;
+  accent-color: #fff; /* slide color */
+}
+
+#wdPlayer:fullscreen {
+  border-radius: 0;
+}
+
+#wdPlayer:fullscreen #controls {
+  padding: 30px;
+}
+#bigPlayButton {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* Centers the button perfectly */
+  width: 70px;
+  height: 70px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: transform 0.2s ease;
+}
+
+#bigPlayButton:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+  background: rgba(0, 0, 0, 0.7);
+}
+
+#bigPlayButton svg {
+  width: 35px;
+  height: 35px;
+}
