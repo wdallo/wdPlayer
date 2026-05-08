@@ -105,22 +105,109 @@ video.addEventListener(
   true,
 );
 
-// Subtitle tracks — add as many languages as needed (empty array = CC button hidden)
+// Create CC Button — hidden by default, shown only if a subtitle track loads successfully
+const ccButton = document.createElement("button");
+ccButton.id = "ccButton";
+ccButton.title = "Subtitles";
+ccButton.style.display = "none";
+ccButton.replaceChildren(getIcon("cc"));
+
+// Create Subtitles Menu Container
+const subtitleMenu = document.createElement("div");
+subtitleMenu.id = "subtitleMenu";
+subtitleMenu.classList.add("hidden");
+
+// Subtitle tracks — add VTT or ASS entries
+// VTT: rendered natively via <track>; ASS: rendered via SubtitlesOctopus
 const subtitleTracks = [
-  { label: "English", srclang: "en", src: "subtitles/subtitles.en.vtt" },
-  { label: "Lietuvių", srclang: "lt", src: "subtitles/subtitles.lt.vtt" },
+  {
+    label: "English",
+    srclang: "en",
+    src: "subtitles/subtitles.en.vtt",
+    type: "vtt",
+  },
+  {
+    label: "Lietuvių",
+    srclang: "lt",
+    src: "subtitles/subtitles.lt.vtt",
+    type: "vtt",
+  },
+  { label: "English", src: "subtitles/subtitles.en.ass", type: "ass" },
 ];
 
-let loadedTrackCount = 0;
+// SubtitlesOctopus instance for ASS rendering (created on demand)
+let octopusInstance = null;
+let activeAssTrackSrc = null;
 
-subtitleTracks.forEach(({ label, srclang, src }) => {
+// Lazily load the Octopus script once, then call back
+let octopusScriptLoaded = false;
+let octopusScriptLoading = false;
+const octopusLoadCallbacks = [];
+const loadOctopusScript = (cb) => {
+  if (octopusScriptLoaded) {
+    cb();
+    return;
+  }
+  octopusLoadCallbacks.push(cb);
+  if (octopusScriptLoading) return;
+  octopusScriptLoading = true;
+  const s = document.createElement("script");
+  s.src = "js/octopus/subtitles-octopus.js";
+  s.onload = () => {
+    octopusScriptLoaded = true;
+    octopusScriptLoading = false;
+    octopusLoadCallbacks.splice(0).forEach((fn) => fn());
+  };
+  s.onerror = () => console.error("Failed to load SubtitlesOctopus script.");
+  document.head.appendChild(s);
+};
+
+// Destroy existing Octopus instance cleanly
+const destroyOctopus = () => {
+  if (octopusInstance) {
+    octopusInstance.dispose();
+    octopusInstance = null;
+  }
+  activeAssTrackSrc = null;
+};
+
+// Load an ASS track via Octopus (loads the library on first use)
+const loadAssTrack = (src) => {
+  destroyOctopus();
+  for (let i = 0; i < video.textTracks.length; i++)
+    video.textTracks[i].mode = "disabled";
+  loadOctopusScript(() => {
+    destroyOctopus();
+    activeAssTrackSrc = src;
+    octopusInstance = new SubtitlesOctopus({
+      video,
+      subUrl: new URL(src, document.baseURI).href,
+      workerUrl: new URL(
+        "js/octopus/subtitles-octopus-worker.js",
+        document.baseURI,
+      ).href,
+      legacyWorkerUrl: new URL(
+        "js/octopus/subtitles-octopus-worker-legacy.js",
+        document.baseURI,
+      ).href,
+      fallbackFont: null,
+      availableFonts: {},
+    });
+  });
+};
+
+// Register VTT tracks natively; ASS tracks are loaded on demand
+subtitleTracks.forEach(({ label, srclang, src, type }) => {
+  if (type === "ass") {
+    ccButton.style.display = "";
+    return;
+  }
   const track = document.createElement("track");
   track.kind = "captions";
   track.label = label;
-  track.srclang = srclang;
+  track.srclang = srclang || "";
   track.addEventListener("load", () => {
-    loadedTrackCount++;
-    if (loadedTrackCount > 0) ccButton.style.display = "";
+    ccButton.style.display = "";
   });
   track.addEventListener("error", () => {
     console.warn("Subtitle track failed to load:", src, "— track disabled.");
@@ -287,13 +374,20 @@ const runAutoCheck = async () => {
 const startAutoMode = () => {
   isAutoMode = true;
   runAutoCheck();
-  autoCheckInterval = setInterval(runAutoCheck, 10_000);
+  autoCheckInterval = setInterval(runAutoCheck, 5_000);
+  // React immediately when browser reports connection change
+  if (navigator.connection) {
+    navigator.connection.addEventListener("change", runAutoCheck);
+  }
   updateQualityLabel();
 };
 const stopAutoMode = () => {
   isAutoMode = false;
   clearInterval(autoCheckInterval);
   autoCheckInterval = null;
+  if (navigator.connection) {
+    navigator.connection.removeEventListener("change", runAutoCheck);
+  }
 };
 
 // Start in auto mode immediately
@@ -306,13 +400,17 @@ const populateQualityMenu = () => {
   // Auto option
   const autoBtn = document.createElement("button");
   autoBtn.classList.add("subtitle-option");
-  const autoCheck = document.createElement("span");
-  autoCheck.className = "subtitle-check";
-  autoCheck.textContent = isAutoMode ? "✓" : "";
-  autoBtn.appendChild(autoCheck);
-  autoBtn.appendChild(document.createTextNode(" Auto"));
+  if (isAutoMode) autoBtn.classList.add("active");
+  autoBtn.appendChild(document.createTextNode("Auto"));
+  if (isAutoMode) {
+    const badge = document.createElement("span");
+    badge.className = "auto-quality-badge";
+    badge.textContent = sources[activeSourceIndex].label;
+    autoBtn.appendChild(badge);
+  }
   autoBtn.addEventListener("click", () => {
     startAutoMode();
+    populateQualityMenu();
     qualityMenu.classList.add("hidden");
   });
   qualityMenu.appendChild(autoBtn);
@@ -321,15 +419,13 @@ const populateQualityMenu = () => {
   sources.forEach((s, i) => {
     const btn = document.createElement("button");
     btn.classList.add("subtitle-option");
-    const check = document.createElement("span");
-    check.className = "subtitle-check";
-    check.textContent = !isAutoMode && i === activeSourceIndex ? "✓" : "";
-    btn.appendChild(check);
-    btn.appendChild(document.createTextNode(" " + s.label));
+    if (!isAutoMode && i === activeSourceIndex) btn.classList.add("active");
+    btn.appendChild(document.createTextNode(s.label));
     btn.addEventListener("click", () => {
       stopAutoMode();
       switchSource(i);
       updateQualityLabel();
+      populateQualityMenu();
       qualityMenu.classList.add("hidden");
     });
     qualityMenu.appendChild(btn);
@@ -344,57 +440,65 @@ qualityButton.addEventListener("click", (e) => {
   subtitleMenu.classList.add("hidden");
 });
 
-// Create CC Button — hidden by default, shown only if subtitle track loads successfully
-const ccButton = document.createElement("button");
-ccButton.id = "ccButton";
-ccButton.title = "Subtitles";
-ccButton.style.display = "none";
-ccButton.replaceChildren(getIcon("cc"));
-
-// Create Subtitles Menu Container
-const subtitleMenu = document.createElement("div");
-subtitleMenu.id = "subtitleMenu";
-subtitleMenu.classList.add("hidden");
-
-// Populate the subtitle menu from available tracks, showing a checkmark on the active one
+// Populate the subtitle menu — handles both VTT (native tracks) and ASS (Octopus)
 const populateSubtitleMenu = () => {
   subtitleMenu.replaceChildren();
-  const tracks = video.textTracks;
+  const nativeTracks = video.textTracks;
+  const anyNativeActive = Array.from(nativeTracks).some(
+    (t) => t.mode === "showing",
+  );
+  const anyActive = anyNativeActive || octopusInstance !== null;
 
-  // Check if any track is currently showing
-  const anyActive = Array.from(tracks).some((t) => t.mode === "showing");
-
+  // "None" option
   const offBtn = document.createElement("button");
   offBtn.classList.add("subtitle-option");
-  const offCheck = document.createElement("span");
-  offCheck.className = "subtitle-check";
-  offCheck.textContent = anyActive ? "" : "✓";
-  offBtn.appendChild(offCheck);
-  offBtn.appendChild(document.createTextNode(" None"));
+  if (!anyActive) offBtn.classList.add("active");
+  offBtn.appendChild(document.createTextNode("None"));
   offBtn.addEventListener("click", () => {
-    for (let i = 0; i < tracks.length; i++) tracks[i].mode = "disabled";
+    for (let i = 0; i < nativeTracks.length; i++)
+      nativeTracks[i].mode = "disabled";
+    destroyOctopus();
     subtitleMenu.classList.add("hidden");
   });
   subtitleMenu.appendChild(offBtn);
 
-  for (let i = 0; i < tracks.length; i++) {
-    const isActive = tracks[i].mode === "showing";
-    const trackBtn = document.createElement("button");
-    trackBtn.classList.add("subtitle-option");
-    const trackCheck = document.createElement("span");
-    trackCheck.className = "subtitle-check";
-    trackCheck.textContent = isActive ? "✓" : "";
-    trackBtn.appendChild(trackCheck);
-    trackBtn.appendChild(
-      document.createTextNode(" " + (tracks[i].label || `Track ${i + 1}`)),
-    );
-    trackBtn.addEventListener("click", () => {
-      for (let j = 0; j < tracks.length; j++)
-        tracks[j].mode = i === j ? "showing" : "disabled";
+  // Build entries for each configured track
+  subtitleTracks.forEach(({ label, src, type }, idx) => {
+    const isAss = type === "ass";
+    // Determine if this entry is currently active
+    let isActive = false;
+    if (isAss) {
+      isActive = activeAssTrackSrc === src;
+    } else {
+      // Match by label against native textTracks
+      const nativeIdx = Array.from(nativeTracks).findIndex(
+        (t) => t.label === label,
+      );
+      isActive = nativeIdx !== -1 && nativeTracks[nativeIdx].mode === "showing";
+    }
+
+    const btn = document.createElement("button");
+    btn.classList.add("subtitle-option");
+    if (isActive) btn.classList.add("active");
+    const badge = document.createElement("span");
+    badge.className = "subtitle-type-badge subtitle-type-" + type;
+    badge.textContent = type.toUpperCase();
+    btn.appendChild(badge);
+    btn.appendChild(document.createTextNode(label));
+    btn.addEventListener("click", () => {
+      if (isAss) {
+        loadAssTrack(src);
+      } else {
+        destroyOctopus();
+        for (let i = 0; i < nativeTracks.length; i++) {
+          nativeTracks[i].mode =
+            nativeTracks[i].label === label ? "showing" : "disabled";
+        }
+      }
       subtitleMenu.classList.add("hidden");
     });
-    subtitleMenu.appendChild(trackBtn);
-  }
+    subtitleMenu.appendChild(btn);
+  });
 };
 
 // Toggle subtitle menu on CC button click
@@ -474,17 +578,25 @@ video.addEventListener("loadedmetadata", () => {
 });
 
 // Show buffering spinner when video is waiting/buffering
+let wasWaiting = false;
 video.addEventListener("waiting", () => {
   bufferingSpinner.style.display = "flex";
+  wasWaiting = true;
+  if (isAutoMode) runAutoCheck(); // connection likely degraded
 });
 video.addEventListener("playing", () => {
   bufferingSpinner.style.display = "none";
+  if (wasWaiting && isAutoMode) {
+    wasWaiting = false;
+    runAutoCheck();
+  } // may have recovered
 });
 video.addEventListener("pause", () => {
   bufferingSpinner.style.display = "none";
 });
 video.addEventListener("ended", () => {
   bufferingSpinner.style.display = "none";
+  updateUIState();
 });
 video.addEventListener("canplay", () => {
   bufferingSpinner.style.display = "none";
@@ -547,8 +659,15 @@ progressBar.addEventListener("mouseleave", () => {
 
 // Seek video when progress bar is changed
 progressBar.addEventListener("input", () => {
+  const wasEnded = video.ended;
   video.currentTime = (progressBar.value / 100) * video.duration;
   updateRangeValue(progressBar);
+  if (wasEnded) {
+    video
+      .play()
+      .then(updateUIState)
+      .catch(() => {});
+  }
 });
 
 // Change volume when volume slider is changed
@@ -567,7 +686,21 @@ video.addEventListener("volumechange", () => {
 playButton.addEventListener("click", playPauseVideo);
 fullScreenButton.addEventListener("click", toggleFullScreen);
 bigPlayButton.addEventListener("click", playPauseVideo);
-video.addEventListener("click", playPauseVideo);
+
+// Single click = play/pause, double click = fullscreen
+let clickTimer = null;
+video.addEventListener("click", () => {
+  if (clickTimer) {
+    clearTimeout(clickTimer);
+    clickTimer = null;
+    toggleFullScreen();
+  } else {
+    clickTimer = setTimeout(() => {
+      clickTimer = null;
+      playPauseVideo();
+    }, 220);
+  }
+});
 
 // Update fullscreen icon and handle controls visibility on fullscreen change
 document.addEventListener("fullscreenchange", () => {
@@ -663,3 +796,77 @@ video.addEventListener("pause", () => {
   showControls();
   clearTimeout(controlsHideTimeout);
 });
+
+// Custom right-click context menu with player info
+const contextMenu = document.createElement("div");
+contextMenu.id = "playerContextMenu";
+contextMenu.classList.add("hidden");
+playerWrapper.appendChild(contextMenu);
+
+const hideContextMenu = () => contextMenu.classList.add("hidden");
+
+playerWrapper.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+
+  const quality = isAutoMode
+    ? `Auto (${sources[activeSourceIndex].label})`
+    : sources[activeSourceIndex].label;
+
+  const activeSub = (() => {
+    if (activeAssTrackSrc) {
+      const t = subtitleTracks.find((s) => s.src === activeAssTrackSrc);
+      return t ? `${t.label} (ASS)` : "ASS";
+    }
+    const showing = Array.from(video.textTracks).find(
+      (t) => t.mode === "showing",
+    );
+    return showing ? `${showing.label} (VTT)` : "None";
+  })();
+
+  const rows = [
+    ["wdPlayer", "v1.0"],
+    ["Quality", quality],
+    ["Subtitles", activeSub],
+    [
+      "Resolution",
+      video.videoWidth ? `${video.videoWidth}×${video.videoHeight}` : "—",
+    ],
+    ["Volume", `${Math.round(video.volume * 100)}%`],
+  ];
+
+  contextMenu.replaceChildren();
+  rows.forEach(([key, val]) => {
+    const row = document.createElement("div");
+    row.className = "ctx-row";
+    const k = document.createElement("span");
+    k.className = "ctx-key";
+    k.textContent = key;
+    const v = document.createElement("span");
+    v.className = "ctx-val";
+    v.textContent = val;
+    row.appendChild(k);
+    row.appendChild(v);
+    contextMenu.appendChild(row);
+  });
+
+  // Position inside player bounds
+  const pr = playerWrapper.getBoundingClientRect();
+  let x = e.clientX - pr.left;
+  let y = e.clientY - pr.top;
+  contextMenu.classList.remove("hidden");
+  const mw = contextMenu.offsetWidth;
+  const mh = contextMenu.offsetHeight;
+  if (x + mw > pr.width) x = pr.width - mw - 4;
+  if (y + mh > pr.height) y = pr.height - mh - 4;
+  contextMenu.style.left = x + "px";
+  contextMenu.style.top = y + "px";
+});
+
+playerWrapper.addEventListener("click", hideContextMenu);
+document.addEventListener(
+  "keydown",
+  (e) => {
+    if (e.key === "Escape") hideContextMenu();
+  },
+  { capture: true },
+);
