@@ -51,7 +51,9 @@
   position: absolute;
   bottom: 60px;
   right: 40px;
-  background: rgba(0, 0, 0, 0.95);
+  background: rgba(15, 15, 15, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: #fff;
   border-radius: 8px;
   box-shadow: 0 2px 8px #000a;
@@ -109,19 +111,106 @@
   background: rgba(255, 255, 255, 0.22);
 }
 
-/* Subtitle option layout: checkmark + label */
-#subtitleMenu .subtitle-option {
+/* Menu option layout (shared: subtitle + quality) */
+#subtitleMenu .subtitle-option,
+#qualityMenu .subtitle-option {
   display: flex;
   align-items: center;
   gap: 8px;
+  border-left: 3px solid transparent;
+  padding-left: 9px;
 }
-#subtitleMenu .subtitle-check {
+#subtitleMenu .subtitle-option.active,
+#qualityMenu .subtitle-option.active {
+  border-left-color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-weight: 600;
+}
+.subtitle-type-badge {
   display: inline-block;
-  width: 16px;
-  text-align: center;
-  color: #fdfdfd;
-  font-weight: bold;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin: 0 5px 0 4px;
+  vertical-align: middle;
+  line-height: 14px;
   flex-shrink: 0;
+}
+.subtitle-type-vtt {
+  background: rgba(99, 179, 237, 0.25);
+  color: #63b3ed;
+  border: 1px solid rgba(99, 179, 237, 0.4);
+}
+.subtitle-type-ass {
+  background: rgba(246, 135, 179, 0.25);
+  color: #f687b3;
+  border: 1px solid rgba(246, 135, 179, 0.4);
+}
+.auto-quality-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+  padding-left: 8px;
+}
+
+/* Custom right-click context menu */
+#playerContextMenu {
+  position: absolute;
+  z-index: 100;
+  background: rgba(15, 15, 15, 0.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 10px 0;
+  min-width: 210px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+#playerContextMenu.hidden {
+  display: none;
+}
+.ctx-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 16px;
+  gap: 24px;
+  line-height: 1.3;
+}
+.ctx-row:first-child {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 4px;
+  padding-bottom: 8px;
+}
+.ctx-key {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.ctx-val {
+  font-size: 13px;
+  color: #fff;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ctx-row:first-child .ctx-key {
+  font-size: 13px;
+  color: #fff;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.ctx-row:first-child .ctx-val {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 400;
 }
 #wdPlayer {
   position: relative;
