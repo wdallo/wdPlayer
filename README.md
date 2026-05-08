@@ -2,6 +2,9 @@
 
 Lightweight, dependency-free HTML5 video player with quality switching, ASS/VTT subtitles, and URL-encoded configuration.
 
+![wdPlayer screenshot 1](screenShots/1.jpg)
+![wdPlayer screenshot 2](screenShots/2.jpg)
+
 ## Files
 
 ```
