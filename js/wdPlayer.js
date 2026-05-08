@@ -9,6 +9,15 @@ shimmerEl.className = "shimmer";
 skeleton.appendChild(shimmerEl);
 playerWrapper.appendChild(skeleton);
 
+// Buffering spinner overlay
+const bufferingSpinner = document.createElement("div");
+bufferingSpinner.id = "bufferingSpinner";
+const spinnerEl = document.createElement("div");
+spinnerEl.className = "spinner";
+bufferingSpinner.appendChild(spinnerEl);
+bufferingSpinner.style.display = "none";
+playerWrapper.appendChild(bufferingSpinner);
+
 // SVG icon definitions for controls
 const icons = {
   play: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><polygon points="8,5 19,12 8,19" /></svg>`,
@@ -18,18 +27,25 @@ const icons = {
   cc: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 4H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zm-8 7H9.5V10.5h-2v3h2V13H11v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-4a1 1 0 011-1h3a1 1 0 011 1v1zm7 0h-1.5V10.5h-2v3h2V13H18v1a1 1 0 01-1 1h-3a1 1 0 01-1-1v-4a1 1 0 011-1h3a1 1 0 011 1v1z"/></svg>`,
 };
 
-// Helper to get an SVG icon element by name
+// Helper to get an SVG icon element by name — parses once, then clones from cache
+const iconCache = {};
 const getIcon = (name) => {
   if (!icons.hasOwnProperty(name)) return document.createElement("span");
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(icons[name], "image/svg+xml");
-  const svg = doc.querySelector("svg");
-  if (!svg) return document.createElement("span");
-  svg.setAttribute("width", "20");
-  svg.setAttribute("height", "20");
-  svg.style.fill = "currentColor";
-  svg.style.display = "block";
-  return svg;
+  if (!iconCache[name]) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(icons[name], "image/svg+xml");
+    const svg = doc.querySelector("svg");
+    if (!svg) {
+      iconCache[name] = null;
+      return document.createElement("span");
+    }
+    svg.setAttribute("width", "20");
+    svg.setAttribute("height", "20");
+    svg.style.fill = "currentColor";
+    svg.style.display = "block";
+    iconCache[name] = svg;
+  }
+  return iconCache[name].cloneNode(true);
 };
 
 // Update a CSS variable for the slider to allow custom progress coloring
@@ -48,10 +64,29 @@ video.height = 440;
 video.setAttribute("preload", "metadata");
 playerWrapper.appendChild(video);
 
-// Create and append the video source
+// Video sources — add as many quality options as needed
+const sources = [
+  {
+    label: "1080p",
+    src: "https://test-videos.co.uk/vids/jellyfish/mp4/h264/1080/Jellyfish_1080_10s_30MB.mp4",
+    type: "video/mp4",
+  },
+  {
+    label: "720p",
+    src: "https://test-videos.co.uk/vids/jellyfish/mp4/h264/720/Jellyfish_720_10s_20MB.mp4",
+    type: "video/mp4",
+  },
+  {
+    label: "360p",
+    src: "https://test-videos.co.uk/vids/jellyfish/mp4/h264/360/Jellyfish_360_10s_10MB.mp4",
+    type: "video/mp4",
+  },
+];
+let activeSourceIndex = 0;
+
 const source = document.createElement("source");
-source.src = "https://www.w3schools.com/html/mov_bbb.mp4";
-source.type = "video/mp4";
+source.src = sources[activeSourceIndex].src;
+source.type = sources[activeSourceIndex].type;
 video.appendChild(source);
 
 // Error handling for empty or broken source
@@ -70,35 +105,30 @@ video.addEventListener(
   true,
 );
 
-// Define the local VTT subtitle file path (must be served via a local server, not file://)
-const vttPath = "subtitles/subtitles.en.vtt";
+// Subtitle tracks — add as many languages as needed (empty array = CC button hidden)
+const subtitleTracks = [
+  { label: "English", srclang: "en", src: "subtitles/subtitles.en.vtt" },
+  { label: "Lietuvių", srclang: "lt", src: "subtitles/subtitles.lt.vtt" },
+];
 
-// Only add subtitles track if a path is provided
-if (vttPath && vttPath.trim() !== "") {
-  const subtitles = document.createElement("track");
-  subtitles.kind = "captions";
-  subtitles.label = "English";
-  subtitles.srclang = "en";
-  subtitles.addEventListener("load", () => {
-    // Track loaded successfully — show the CC button
-    ccButton.style.display = "";
+let loadedTrackCount = 0;
+
+subtitleTracks.forEach(({ label, srclang, src }) => {
+  const track = document.createElement("track");
+  track.kind = "captions";
+  track.label = label;
+  track.srclang = srclang;
+  track.addEventListener("load", () => {
+    loadedTrackCount++;
+    if (loadedTrackCount > 0) ccButton.style.display = "";
   });
-  subtitles.addEventListener("error", () => {
-    console.warn(
-      "Subtitle track failed to load:",
-      vttPath,
-      "— subtitles disabled.",
-    );
-    // Hide CC button since there's no usable track
-    ccButton.style.display = "none";
+  track.addEventListener("error", () => {
+    console.warn("Subtitle track failed to load:", src, "— track disabled.");
   });
-  // Append first, then set src — ensures the track is in the DOM before loading starts
-  video.appendChild(subtitles);
-  subtitles.src = vttPath;
-  // Mode must be "hidden" (not "disabled") to trigger the browser to actually fetch the VTT file
-  // "disabled" = browser skips fetching entirely; "hidden" = loaded but not shown
-  subtitles.track.mode = "hidden";
-}
+  video.appendChild(track);
+  track.src = src;
+  track.track.mode = "hidden";
+});
 
 // Create the central big play button
 const bigPlayButton = document.createElement("button");
@@ -131,6 +161,37 @@ progressBar.value = 0;
 progressBar.max = 100;
 progressBar.step = 0.1;
 
+// Tooltip shown above progress bar on hover (thumbnail + time)
+const progressTooltip = document.createElement("div");
+progressTooltip.id = "progressTooltip";
+progressTooltip.style.display = "none";
+const thumbCanvas = document.createElement("canvas");
+thumbCanvas.width = 160;
+thumbCanvas.height = 90;
+const thumbCtx = thumbCanvas.getContext("2d");
+const thumbShimmer = document.createElement("div");
+thumbShimmer.id = "thumbShimmer";
+const progressTooltipTime = document.createElement("span");
+progressTooltipTime.id = "progressTooltipTime";
+progressTooltip.appendChild(thumbCanvas);
+progressTooltip.appendChild(thumbShimmer);
+progressTooltip.appendChild(progressTooltipTime);
+playerWrapper.appendChild(progressTooltip);
+
+// Hidden video used only to seek and capture thumbnail frames
+const thumbVideo = document.createElement("video");
+thumbVideo.muted = true;
+thumbVideo.preload = "metadata";
+thumbVideo.style.display = "none";
+thumbVideo.addEventListener("seeking", () => {
+  thumbShimmer.style.display = "block";
+});
+thumbVideo.addEventListener("seeked", () => {
+  thumbCtx.drawImage(thumbVideo, 0, 0, 160, 90);
+  thumbShimmer.style.display = "none";
+});
+playerWrapper.appendChild(thumbVideo);
+
 const volumeSlider = document.createElement("input");
 volumeSlider.id = "volumeSlider";
 volumeSlider.type = "range";
@@ -138,6 +199,150 @@ volumeSlider.min = 0;
 volumeSlider.max = 1;
 volumeSlider.step = 0.01;
 volumeSlider.value = 1;
+
+// Create Quality Button
+const qualityButton = document.createElement("button");
+qualityButton.id = "qualityButton";
+qualityButton.title = "Quality";
+qualityButton.textContent = "Auto";
+
+// Create Quality Menu Container
+const qualityMenu = document.createElement("div");
+qualityMenu.id = "qualityMenu";
+qualityMenu.classList.add("hidden");
+
+// Auto mode state
+let isAutoMode = true;
+let autoCheckInterval = null;
+
+// Measure effective downlink in Mbps.
+// Uses navigator.connection when available; falls back to a timed fetch.
+const measureBandwidth = async () => {
+  if (navigator.connection && navigator.connection.downlink) {
+    return navigator.connection.downlink; // Mbps
+  }
+  // Fallback: fetch a ~100 KB probe and time it
+  try {
+    const probeUrl = sources[sources.length - 1].src + "?cache=" + Date.now();
+    const PROBE_BYTES = 100_000;
+    const t0 = performance.now();
+    const res = await fetch(probeUrl, { cache: "no-store" });
+    const reader = res.body.getReader();
+    let received = 0;
+    while (received < PROBE_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.length;
+    }
+    reader.cancel();
+    const elapsed = (performance.now() - t0) / 1000; // seconds
+    return (received * 8) / 1_000_000 / elapsed; // Mbps
+  } catch {
+    return null;
+  }
+};
+
+// Pick best source index based on Mbps
+// Assumes sources are ordered best→worst (highest bitrate first)
+const bandwidthThresholds = [5, 2]; // Mbps needed for sources[0], sources[1]; else sources[2]
+const getBestSourceIndex = (mbps) => {
+  for (let i = 0; i < bandwidthThresholds.length; i++) {
+    if (mbps >= bandwidthThresholds[i]) return i;
+  }
+  return sources.length - 1;
+};
+
+// Switch to a different source while preserving playback position
+const switchSource = (index) => {
+  if (index === activeSourceIndex) return;
+  const wasPlaying = !video.paused;
+  const savedTime = video.currentTime;
+  activeSourceIndex = index;
+  source.src = sources[index].src;
+  source.type = sources[index].type;
+  thumbVideo.src = "";
+  lastThumbSeekTime = -1;
+  video.load();
+  video.currentTime = savedTime;
+  if (wasPlaying) video.play().catch(() => {});
+};
+
+// Update quality button label
+const updateQualityLabel = () => {
+  qualityButton.textContent = isAutoMode
+    ? `Auto (${sources[activeSourceIndex].label})`
+    : sources[activeSourceIndex].label;
+};
+
+// Run one auto-quality check
+const runAutoCheck = async () => {
+  const mbps = await measureBandwidth();
+  if (mbps === null) return;
+  const best = getBestSourceIndex(mbps);
+  switchSource(best);
+  updateQualityLabel();
+};
+
+// Start/stop periodic auto checks
+const startAutoMode = () => {
+  isAutoMode = true;
+  runAutoCheck();
+  autoCheckInterval = setInterval(runAutoCheck, 10_000);
+  updateQualityLabel();
+};
+const stopAutoMode = () => {
+  isAutoMode = false;
+  clearInterval(autoCheckInterval);
+  autoCheckInterval = null;
+};
+
+// Start in auto mode immediately
+startAutoMode();
+
+// Populate quality menu (Auto + manual options)
+const populateQualityMenu = () => {
+  qualityMenu.replaceChildren();
+
+  // Auto option
+  const autoBtn = document.createElement("button");
+  autoBtn.classList.add("subtitle-option");
+  const autoCheck = document.createElement("span");
+  autoCheck.className = "subtitle-check";
+  autoCheck.textContent = isAutoMode ? "✓" : "";
+  autoBtn.appendChild(autoCheck);
+  autoBtn.appendChild(document.createTextNode(" Auto"));
+  autoBtn.addEventListener("click", () => {
+    startAutoMode();
+    qualityMenu.classList.add("hidden");
+  });
+  qualityMenu.appendChild(autoBtn);
+
+  // Manual options
+  sources.forEach((s, i) => {
+    const btn = document.createElement("button");
+    btn.classList.add("subtitle-option");
+    const check = document.createElement("span");
+    check.className = "subtitle-check";
+    check.textContent = !isAutoMode && i === activeSourceIndex ? "✓" : "";
+    btn.appendChild(check);
+    btn.appendChild(document.createTextNode(" " + s.label));
+    btn.addEventListener("click", () => {
+      stopAutoMode();
+      switchSource(i);
+      updateQualityLabel();
+      qualityMenu.classList.add("hidden");
+    });
+    qualityMenu.appendChild(btn);
+  });
+};
+
+// Toggle quality menu on button click
+qualityButton.addEventListener("click", (e) => {
+  e.stopPropagation();
+  populateQualityMenu();
+  qualityMenu.classList.toggle("hidden");
+  subtitleMenu.classList.add("hidden");
+});
 
 // Create CC Button — hidden by default, shown only if subtitle track loads successfully
 const ccButton = document.createElement("button");
@@ -197,10 +402,14 @@ ccButton.addEventListener("click", (e) => {
   e.stopPropagation();
   populateSubtitleMenu();
   subtitleMenu.classList.toggle("hidden");
+  qualityMenu.classList.add("hidden");
 });
 
-// Close subtitle menu when clicking outside
-document.addEventListener("click", () => subtitleMenu.classList.add("hidden"));
+// Close subtitle and quality menus when clicking outside
+document.addEventListener("click", () => {
+  subtitleMenu.classList.add("hidden");
+  qualityMenu.classList.add("hidden");
+});
 
 // Add all controls to the controls container
 controls.append(
@@ -208,12 +417,14 @@ controls.append(
   timerDisplay,
   progressBar,
   volumeSlider,
+  qualityButton,
   ccButton,
   fullScreenButton,
 );
 
-// Subtitle menu is absolutely positioned inside the player wrapper
+// Subtitle and quality menus are absolutely positioned inside the player wrapper
 playerWrapper.appendChild(subtitleMenu);
+playerWrapper.appendChild(qualityMenu);
 
 // Format seconds as mm:ss
 const formatTime = (seconds) => {
@@ -262,13 +473,76 @@ video.addEventListener("loadedmetadata", () => {
   timerDisplay.textContent = `0:00 / ${formatTime(video.duration)}`;
 });
 
-// Update progress bar and timer as video plays
+// Show buffering spinner when video is waiting/buffering
+video.addEventListener("waiting", () => {
+  bufferingSpinner.style.display = "flex";
+});
+video.addEventListener("playing", () => {
+  bufferingSpinner.style.display = "none";
+});
+video.addEventListener("pause", () => {
+  bufferingSpinner.style.display = "none";
+});
+video.addEventListener("ended", () => {
+  bufferingSpinner.style.display = "none";
+});
+video.addEventListener("canplay", () => {
+  bufferingSpinner.style.display = "none";
+});
+
+// Update buffered range CSS variable on the progress bar
+const updateBuffered = () => {
+  if (!video.duration) return;
+  let end = 0;
+  for (let i = 0; i < video.buffered.length; i++) {
+    if (video.buffered.end(i) > end) end = video.buffered.end(i);
+  }
+  progressBar.style.setProperty(
+    "--buffered",
+    (end / video.duration) * 100 + "%",
+  );
+};
+video.addEventListener("progress", updateBuffered);
+
+// Single timeupdate handler: update buffered bar + progress + timer
 video.addEventListener("timeupdate", () => {
+  updateBuffered();
   if (!isNaN(video.duration)) {
     progressBar.value = (video.currentTime / video.duration) * 100;
     updateRangeValue(progressBar);
   }
   timerDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+});
+
+// Show thumbnail + time tooltip on progress bar hover
+let lastThumbSeekTime = -1;
+progressBar.addEventListener("mousemove", (e) => {
+  if (!video.duration) return;
+  // Set thumb video source lazily on first hover
+  if (!thumbVideo.src) thumbVideo.src = source.src;
+  const rect = progressBar.getBoundingClientRect();
+  const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const hoverTime = ratio * video.duration;
+  progressTooltipTime.textContent = formatTime(hoverTime);
+  // Throttle seeks: only seek if hovered time changed by more than 0.5s
+  if (Math.abs(hoverTime - lastThumbSeekTime) > 0.5) {
+    lastThumbSeekTime = hoverTime;
+    thumbVideo.currentTime = hoverTime;
+  }
+  // Position tooltip centred above hover point, clamped inside the player
+  const playerRect = playerWrapper.getBoundingClientRect();
+  const rawLeft = e.clientX - playerRect.left;
+  const half = 80; // half of canvas width (160px)
+  const clampedLeft = Math.max(
+    half,
+    Math.min(playerRect.width - half, rawLeft),
+  );
+  progressTooltip.style.left = clampedLeft + "px";
+  progressTooltip.style.display = "flex";
+});
+
+progressBar.addEventListener("mouseleave", () => {
+  progressTooltip.style.display = "none";
 });
 
 // Seek video when progress bar is changed
@@ -317,8 +591,8 @@ updateRangeValue(progressBar);
 updateRangeValue(volumeSlider);
 
 // Keyboard shortcuts:
-// Space = play/pause, F = fullscreen, C = toggle captions
-// ArrowRight/Left = seek �5s, ArrowUp/Down = volume �10%
+// Space = play/pause, F = fullscreen
+// ArrowRight/Left = seek 5s, ArrowUp/Down = volume 10%
 document.addEventListener("keydown", (e) => {
   if (document.activeElement.tagName === "INPUT") return;
   switch (e.code) {
