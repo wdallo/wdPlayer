@@ -3,12 +3,64 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Video Player Demo Page</title>
-    <link rel="stylesheet" href="css/wdPlayer.css" />
+    <title>wdPlayer — Demo</title>
     <link rel="icon" href="/fav.png" type="image/png" />
+
+    <link rel="stylesheet" href="css/pages.css" />
   </head>
   <body>
-    <div id="wdPlayer"></div>
+    <header>
+      <h1>wd<span>Player</span></h1>
+      <nav>
+        <a href="generator.html">URL Generator</a>
+        <a
+          href="http://localhost:5500/embed.html?v=eyJ2IjpbeyJsIjoiMTA4MHAiLCJzIjoiaHR0cHM6Ly90ZXN0LXZpZGVvcy5jby51ay92aWRzL2plbGx5ZmlzaC9tcDQvaDI2NC8xMDgwL0plbGx5ZmlzaF8xMDgwXzEwc18zME1CLm1wNCIsInQiOiJ2aWRlby9tcDQifSx7ImwiOiI3MjBwIiwicyI6Imh0dHBzOi8vdGVzdC12aWRlb3MuY28udWsvdmlkcy9qZWxseWZpc2gvbXA0L2gyNjQvNzIwL0plbGx5ZmlzaF83MjBfMTBzXzIwTUIubXA0IiwidCI6InZpZGVvL21wNCJ9LHsibCI6IjM2MHAiLCJzIjoiaHR0cHM6Ly90ZXN0LXZpZGVvcy5jby51ay92aWRzL2plbGx5ZmlzaC9tcDQvaDI2NC8zNjAvSmVsbHlmaXNoXzM2MF8xMHNfMTBNQi5tcDQiLCJ0IjoidmlkZW8vbXA0In1dLCJ1IjpbeyJsIjoiRW5nbGlzaCIsInMiOiJodHRwOi8vbG9jYWxob3N0OjU1MDAvc3VidGl0bGVzL3N1YnRpdGxlcy5lbi52dHQiLCJ0IjoidnR0Iiwic2wiOiJlbiJ9LHsibCI6IkxpdGh1YW5pYW4iLCJzIjoiaHR0cDovL2xvY2FsaG9zdDo1NTAwL3N1YnRpdGxlcy9zdWJ0aXRsZXMubHQudnR0IiwidCI6InZ0dCIsInNsIjoibHQifSx7ImwiOiJFbmdsaXNoIiwicyI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTUwMC9zdWJ0aXRsZXMvc3VidGl0bGVzLmVuLmFzcyIsInQiOiJhc3MiLCJzbCI6ImVuIn1dfQ"
+          >Embed</a
+        >
+      </nav>
+    </header>
+
+    <div class="hero">
+      <h2>HTML5 Video Player</h2>
+      <p>
+        Lightweight, dependency-free video player with quality switching,
+        ASS/VTT subtitles, and URL-encoded configuration.
+      </p>
+    </div>
+
+    <div class="player-wrap">
+      <div class="player-shell">
+        <iframe
+          src="http://localhost:5500/embed.html?v=eyJ2IjpbeyJsIjoiMTA4MHAiLCJzIjoiaHR0cHM6Ly90ZXN0LXZpZGVvcy5jby51ay92aWRzL2plbGx5ZmlzaC9tcDQvaDI2NC8xMDgwL0plbGx5ZmlzaF8xMDgwXzEwc18zME1CLm1wNCIsInQiOiJ2aWRlby9tcDQifSx7ImwiOiI3MjBwIiwicyI6Imh0dHBzOi8vdGVzdC12aWRlb3MuY28udWsvdmlkcy9qZWxseWZpc2gvbXA0L2gyNjQvNzIwL0plbGx5ZmlzaF83MjBfMTBzXzIwTUIubXA0IiwidCI6InZpZGVvL21wNCJ9LHsibCI6IjM2MHAiLCJzIjoiaHR0cHM6Ly90ZXN0LXZpZGVvcy5jby51ay92aWRzL2plbGx5ZmlzaC9tcDQvaDI2NC8zNjAvSmVsbHlmaXNoXzM2MF8xMHNfMTBNQi5tcDQiLCJ0IjoidmlkZW8vbXA0In1dLCJ1IjpbeyJsIjoiRW5nbGlzaCIsInMiOiJodHRwOi8vbG9jYWxob3N0OjU1MDAvc3VidGl0bGVzL3N1YnRpdGxlcy5lbi52dHQiLCJ0IjoidnR0Iiwic2wiOiJlbiJ9LHsibCI6IkxpdGh1YW5pYW4iLCJzIjoiaHR0cDovL2xvY2FsaG9zdDo1NTAwL3N1YnRpdGxlcy9zdWJ0aXRsZXMubHQudnR0IiwidCI6InZ0dCIsInNsIjoibHQifSx7ImwiOiJFbmdsaXNoIiwicyI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTUwMC9zdWJ0aXRsZXMvc3VidGl0bGVzLmVuLmFzcyIsInQiOiJhc3MiLCJzbCI6ImVuIn1dfQ"
+          width="810"
+          height="455"
+          allowfullscreen
+        >
+        </iframe>
+      </div>
+    </div>
+
+    <div class="features">
+      <div class="feat">
+        <h3>Quality Switching</h3>
+        <p>Auto bandwidth detection with manual override per source.</p>
+      </div>
+      <div class="feat">
+        <h3>ASS &amp; VTT Subtitles</h3>
+        <p>Native VTT tracks and ASS via SubtitlesOctopus, lazy loaded.</p>
+      </div>
+      <div class="feat">
+        <h3>URL Config</h3>
+        <p>All sources encoded in the URL. No server or storage needed.</p>
+      </div>
+      <div class="feat">
+        <h3>URL Generator</h3>
+        <p>Visual form to build encoded player URLs without manual JSON.</p>
+      </div>
+    </div>
+
+    <footer>
+      <p>wdPlayer &copy; 2026 &mdash; Lightweight HTML5 Video Player</p>
+    </footer>
   </body>
-  <script src="js/wdPlayer.js"></script>
 </html>

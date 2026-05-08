@@ -1,1 +1,143 @@
-Just creating video player
+# wdPlayer
+
+Lightweight, dependency-free HTML5 video player with quality switching, ASS/VTT subtitles, and URL-encoded configuration.
+
+## Files
+
+```
+index.html        — Demo page with player, features, and usage docs
+embed.html        — Standalone player shell (use this in iframes or directly)
+generator.html    — Visual URL builder (no JSON required)
+css/wdPlayer.css  — Player styles
+css/pages.css     — Shared styles for index.html and generator.html
+js/wdPlayer.js    — All player logic (IIFE, no dependencies)
+js/octopus/       — SubtitlesOctopus (lazy-loaded only when ASS is used)
+subtitles/        — Example subtitle files
+```
+
+## Usage
+
+### 1. Direct URL — single video
+
+```
+embed.html?v=https://example.com/video.mp4
+```
+
+Type is auto-detected from the file extension (`.mp4`, `.webm`, `.ogg`).
+
+---
+
+### 2. `?sources=` param — plain JSON
+
+Pass sources and subtitles directly as JSON. The player will encode and redirect to `?v=BASE64` automatically.
+
+```
+embed.html?sources=[{"label":"1080p","src":"https://…/video.mp4","type":"video/mp4"},
+                    {"label":"720p", "src":"https://…/720.mp4",  "type":"video/mp4"}]
+          &subtitles=[{"label":"English","src":"subtitles/en.vtt","type":"vtt","srclang":"en"}]
+```
+
+Or build the URL in JavaScript:
+
+```js
+const sources = [
+  { label: "1080p", src: "https://…/video.mp4", type: "video/mp4" },
+];
+const subtitles = [
+  { label: "English", src: "subtitles/en.vtt", type: "vtt", srclang: "en" },
+];
+
+const url =
+  "embed.html" +
+  "?sources=" +
+  encodeURIComponent(JSON.stringify(sources)) +
+  "&subtitles=" +
+  encodeURIComponent(JSON.stringify(subtitles));
+```
+
+---
+
+### 3. `?v=BASE64` — encoded config
+
+Use the **URL Generator** (`generator.html`) to build a Base64-encoded URL visually, or encode manually:
+
+```js
+const cfg = {
+  sources: [
+    { label: "1080p", src: "https://…/1080.mp4", type: "video/mp4" },
+    { label: "720p", src: "https://…/720.mp4", type: "video/mp4" },
+  ],
+  subtitles: [
+    { label: "English", src: "subtitles/en.vtt", type: "vtt", srclang: "en" },
+    { label: "English", src: "subtitles/en.ass", type: "ass", srclang: "en" },
+  ],
+};
+
+// Minify keys before encoding (sources→v, subtitles→u, label→l, src→s, type→t, srclang→sl)
+const mini = {
+  v: cfg.sources.map(({ label: l, src: s, type: t }) => ({ l, s, t })),
+  u: cfg.subtitles.map(({ label: l, src: s, type: t, srclang: sl }) => ({
+    l,
+    s,
+    t,
+    sl,
+  })),
+};
+
+const url =
+  "embed.html?v=" +
+  btoa(JSON.stringify(mini))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+```
+
+---
+
+### 4. iFrame embed
+
+```html
+<iframe
+  src="embed.html?v=BASE64"
+  width="560"
+  height="315"
+  allowfullscreen
+  style="border:none;"
+>
+</iframe>
+```
+
+Copy the iFrame snippet directly from the **Encoded → iFrame** tab in the generator.
+
+---
+
+## Subtitle formats
+
+| Format | How                      | Notes                                       |
+| ------ | ------------------------ | ------------------------------------------- |
+| VTT    | Native `<track>` element | Validated with HEAD request before adding   |
+| ASS    | SubtitlesOctopus         | Lazy-loaded from `js/octopus/` on first use |
+
+---
+
+## Keyboard shortcuts
+
+| Key                | Action            |
+| ------------------ | ----------------- |
+| `Space` / click    | Play / Pause      |
+| `F` / double-click | Toggle fullscreen |
+| `←` `→`            | Seek ±5 s         |
+| `↑` `↓`            | Volume ±10%       |
+| Right-click        | Info context menu |
+
+---
+
+## Auto quality
+
+On load the player measures bandwidth via `navigator.connection.downlink` (or a timed fetch probe as fallback) and picks the best source. It re-checks every 5 seconds and reacts to `connection` change events. Manual override is available via the quality button.
+
+---
+
+## No server required
+
+All configuration is self-contained in the URL. No backend, no localStorage, no cookies. Works in incognito, on other devices, or shared as a plain link.

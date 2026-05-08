@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en" class="page-generator">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>wdPlayer URL Generator</title>
+    <link rel="stylesheet" href="css/pages.css" />
+  </head>
+  <body>
+    <header>
+      <h1>wd<span>Player</span></h1>
+      <nav>
+        <a href="index.html">Index</a>
+        <a href="embed.html">Embed</a>
+      </nav>
+    </header>
+
+    <div class="hero">
+      <h2>URL Generator</h2>
+      <p>Build encoded player URLs visually — no manual JSON required.</p>
+    </div>
+
+    <div class="container">
+      <!-- Sources -->
+      <div class="section">
+        <h2>Video Sources</h2>
+        <div class="row-list" id="sourceList"></div>
+        <button class="btn-add" id="addSource">+ Add source</button>
+      </div>
+
+      <!-- Subtitles -->
+      <div class="section">
+        <h2>
+          Subtitles
+          <span style="font-weight: 400; color: #555">(optional)</span>
+        </h2>
+        <div class="row-list" id="subList"></div>
+        <button class="btn-add" id="addSub">+ Add subtitle</button>
+      </div>
+
+      <div>
+        <button id="generateBtn">Generate URL</button>
+        <p class="err" id="errMsg">Add at least one video source.</p>
+      </div>
+
+      <!-- Result -->
+      <div id="result">
+        <div class="result-tabs">
+          <button class="tab-btn active" data-tab="encoded">Encoded</button>
+          <button class="tab-btn" data-tab="iframe">iFrame</button>
+          <button class="tab-btn" data-tab="raw">Raw</button>
+        </div>
+        <div class="url-box">
+          <span id="urlOutput"></span>
+          <button class="copy-btn" id="copyBtn">Copy</button>
+          <a class="open-btn" id="openBtn" target="_blank">Open ↗</a>
+        </div>
+      </div>
+    </div>
+    <br />
+    <footer>
+      <p>wdPlayer &copy; 2026 &mdash; Lightweight HTML5 Video Player</p>
+    </footer>
+
+    <script>
+      // ── Encode helpers (mirrors wdPlayer.js) ────────────────────────────────
+      const _minify = (cfg) => ({
+        v: cfg.sources.map(({ label: l, src: s, type: t }) => ({ l, s, t })),
+        u: (cfg.subtitles ?? []).map(
+          ({ label: l, src: s, type: t, srclang: sl }) =>
+            sl ? { l, s, t, sl } : { l, s, t },
+        ),
+      });
+      const _encode = (cfg) =>
+        btoa(unescape(encodeURIComponent(JSON.stringify(_minify(cfg)))))
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+
+      // ── DOM refs ─────────────────────────────────────────────────────────────
+      const sourceList = document.getElementById("sourceList");
+      const subList = document.getElementById("subList");
+      const generateBtn = document.getElementById("generateBtn");
+      const errMsg = document.getElementById("errMsg");
+      const result = document.getElementById("result");
+      const urlOutput = document.getElementById("urlOutput");
+      const copyBtn = document.getElementById("copyBtn");
+      const openBtn = document.getElementById("openBtn");
+
+      // ── Source rows ──────────────────────────────────────────────────────────
+      const addSource = (label = "", src = "", type = "video/mp4") => {
+        const entry = document.createElement("div");
+        entry.className = "entry source-entry";
+        entry.innerHTML = `
+          <div class="field"><div class="col-label">Label</div>
+            <input type="text" placeholder="1080p" value="${esc(label)}" data-key="label" /></div>
+          <div class="field"><div class="col-label">URL</div>
+            <input type="text" placeholder="https://…/video.mp4" value="${esc(src)}" data-key="src" /></div>
+          <div class="field"><div class="col-label">Type</div>
+            <select data-key="type">
+              <option value="video/mp4" ${type === "video/mp4" ? "selected" : ""}>video/mp4</option>
+              <option value="video/webm" ${type === "video/webm" ? "selected" : ""}>video/webm</option>
+              <option value="video/ogg" ${type === "video/ogg" ? "selected" : ""}>video/ogg</option>
+            </select></div>
+          <button class="btn-remove" title="Remove">✕</button>`;
+        entry
+          .querySelector(".btn-remove")
+          .addEventListener("click", () => entry.remove());
+        sourceList.appendChild(entry);
+      };
+
+      // ── Subtitle rows ────────────────────────────────────────────────────────
+      const addSub = (label = "", src = "", type = "vtt", srclang = "") => {
+        const entry = document.createElement("div");
+        entry.className = "entry sub-entry";
+        entry.innerHTML = `
+          <div class="field"><div class="col-label">Label</div>
+            <input type="text" placeholder="English" value="${esc(label)}" data-key="label" /></div>
+          <div class="field"><div class="col-label">URL</div>
+            <input type="text" placeholder="subtitles/en.vtt" value="${esc(src)}" data-key="src" /></div>
+          <div class="field"><div class="col-label">Type</div>
+            <select data-key="type">
+              <option value="vtt" ${type === "vtt" ? "selected" : ""}>VTT</option>
+              <option value="ass" ${type === "ass" ? "selected" : ""}>ASS</option>
+            </select></div>
+          <div class="field"><div class="col-label">Lang</div>
+            <input type="text" placeholder="en" value="${esc(srclang)}" data-key="srclang" maxlength="10" /></div>
+          <button class="btn-remove" title="Remove">✕</button>`;
+        entry
+          .querySelector(".btn-remove")
+          .addEventListener("click", () => entry.remove());
+        subList.appendChild(entry);
+      };
+
+      const esc = (s) => s.replace(/"/g, "&quot;");
+
+      document
+        .getElementById("addSource")
+        .addEventListener("click", () => addSource());
+      document
+        .getElementById("addSub")
+        .addEventListener("click", () => addSub());
+
+      // Add one blank source row by default
+      addSource();
+
+      // ── Read rows ────────────────────────────────────────────────────────────
+      const readEntries = (container) =>
+        [...container.querySelectorAll(".entry")].map((entry) => {
+          const obj = {};
+          entry.querySelectorAll("[data-key]").forEach((el) => {
+            const v = el.value.trim();
+            if (v) obj[el.dataset.key] = v;
+          });
+          return obj;
+        });
+
+      // ── Tabs ─────────────────────────────────────────────────────────────────
+      let currentTab = "encoded";
+      let lastCfg = null;
+
+      document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document
+            .querySelectorAll(".tab-btn")
+            .forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          currentTab = btn.dataset.tab;
+          if (lastCfg) renderUrl(lastCfg);
+        });
+      });
+
+      const renderUrl = (cfg) => {
+        const base =
+          location.origin +
+          location.pathname.replace("generator.html", "embed.html");
+        let url;
+        if (currentTab === "encoded") {
+          url = base + "?v=" + _encode(cfg);
+        } else if (currentTab === "iframe") {
+          const src = base + "?v=" + _encode(cfg);
+          url = `<iframe src="${src}" width="560" height="315" allowfullscreen style="border:none;"></iframe>`;
+        } else {
+          url =
+            base +
+            "?sources=" +
+            encodeURIComponent(JSON.stringify(cfg.sources)) +
+            (cfg.subtitles.length
+              ? "&subtitles=" +
+                encodeURIComponent(JSON.stringify(cfg.subtitles))
+              : "");
+        }
+        urlOutput.textContent = url;
+        openBtn.href = currentTab !== "iframe" ? url : "#";
+        openBtn.style.display = currentTab === "iframe" ? "none" : "";
+        copyBtn.classList.remove("copied");
+        copyBtn.textContent = "Copy";
+      };
+
+      // ── Generate ─────────────────────────────────────────────────────────────
+      generateBtn.addEventListener("click", () => {
+        const sources = readEntries(sourceList).filter((s) => s.src);
+        const subtitles = readEntries(subList).filter((s) => s.src);
+
+        if (!sources.length) {
+          errMsg.style.display = "block";
+          return;
+        }
+        errMsg.style.display = "none";
+
+        lastCfg = { sources, subtitles };
+        renderUrl(lastCfg);
+        result.style.display = "flex";
+        result.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+
+      // ── Copy ─────────────────────────────────────────────────────────────────
+      copyBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(urlOutput.textContent).then(() => {
+          copyBtn.textContent = "Copied!";
+          copyBtn.classList.add("copied");
+          setTimeout(() => {
+            copyBtn.textContent = "Copy";
+            copyBtn.classList.remove("copied");
+          }, 2000);
+        });
+      });
+    </script>
+  </body>
+</html>
