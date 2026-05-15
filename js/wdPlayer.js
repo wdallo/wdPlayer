@@ -665,6 +665,15 @@
       setTimeout(() => skeleton.remove(), 500);
     }
     timerDisplay.textContent = `0:00 / ${formatTime(video.duration)}`;
+
+    // Get the video source URL (may be absolute or relative)
+    const videoSrc = source.src;
+
+    // Extract just the file name from the URL (removes any query params)
+    const videoFileName = videoSrc.split("/").pop().split("?")[0];
+
+    // Set the page <title> to show the currently playing file name
+    document.title = videoFileName;
   });
 
   // Show buffering spinner when video is waiting/buffering
@@ -900,6 +909,11 @@
 
   playerWrapper.addEventListener("contextmenu", (e) => {
     e.preventDefault();
+    // If menu is already visible, hide it
+    if (!contextMenu.classList.contains("hidden")) {
+      hideContextMenu();
+      return;
+    }
 
     const quality = isAutoMode
       ? `Auto (${sources[activeSourceIndex].label})`
