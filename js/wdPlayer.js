@@ -183,8 +183,10 @@
 
   let activeSourceIndex = 0;
 
-  // localStorage key for resume position — keyed by primary source URL
-  const resumeKey = "wdPlayer:resume:" + sources[0].src;
+  // localStorage key for resume position — keyed by the ?v= URL param
+  const resumeKey =
+    "wdPlayer:resume:" +
+    (new URLSearchParams(location.search).get("v") ?? sources[0].src);
 
   const source = document.createElement("source");
   source.src = sources[activeSourceIndex].src;
