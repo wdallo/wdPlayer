@@ -26,6 +26,9 @@
     fullscreen: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7 14H5v5h5v-2H7v-3zm0-4V7h3V5H5v5h2zm10 7h-3v2h5v-5h-2v3zm-3-12v2h3v3h2V5h-5z"/></svg>`,
     exitFullscreen: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>`,
     cc: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 4H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zm-8 7H9.5V10.5h-2v3h2V13H11v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-4a1 1 0 011-1h3a1 1 0 011 1v1zm7 0h-1.5V10.5h-2v3h2V13H18v1a1 1 0 01-1 1h-3a1 1 0 01-1-1v-4a1 1 0 011-1h3a1 1 0 011 1v1z"/></svg>`,
+    volumeHigh: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>`,
+    volumeLow: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18.5 12A4.5 4.5 0 0016 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg>`,
+    volumeMuted: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16.5 12A4.5 4.5 0 0014 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 003.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>`,
   };
 
   // Helper to get an SVG icon element by name — parses once, then clones from cache
@@ -60,9 +63,7 @@
   // Create the video element and add it to the player
   const video = document.createElement("video");
   video.id = "wd";
-  video.width = 720;
-  video.height = 440;
-  video.setAttribute("preload", "metadata");
+  video.preload = "metadata";
   playerWrapper.appendChild(video);
 
   // Encode/decode config as URL-safe Base64 with minified keys (shorter URL)
@@ -84,13 +85,27 @@
     })),
   });
   const _encode = (cfg) =>
-    btoa(unescape(encodeURIComponent(JSON.stringify(_minify(cfg)))))
+    btoa(
+      encodeURIComponent(JSON.stringify(_minify(cfg))).replace(
+        /%([0-9A-F]{2})/gi,
+        (_, p1) => String.fromCharCode(parseInt(p1, 16)),
+      ),
+    )
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
       .replace(/=+$/, "");
   const _decode = (str) => {
     const b64 = str.replace(/-/g, "+").replace(/_/g, "/");
-    return _expand(JSON.parse(decodeURIComponent(escape(atob(b64)))));
+    return _expand(
+      JSON.parse(
+        decodeURIComponent(
+          atob(b64)
+            .split("")
+            .map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
+            .join(""),
+        ),
+      ),
+    );
   };
 
   // Sources and subtitles come entirely from URL params — no storage needed.
@@ -149,14 +164,27 @@
   if (!sources.length) {
     const noSrcErr = document.createElement("div");
     noSrcErr.id = "videoError";
-    noSrcErr.innerHTML =
-      "No video sources provided.<br><small>Use <code>?sources=[...]</code> or <code>?v=HASH</code></small>";
-    if (skeleton) skeleton.style.display = "none";
+    noSrcErr.appendChild(document.createTextNode("No video sources provided."));
+    noSrcErr.appendChild(document.createElement("br"));
+    const noSrcHint = document.createElement("small");
+    const noSrcCode1 = document.createElement("code");
+    noSrcCode1.textContent = "?sources=[...]";
+    const noSrcCode2 = document.createElement("code");
+    noSrcCode2.textContent = "?v=HASH";
+    noSrcHint.appendChild(document.createTextNode("Use "));
+    noSrcHint.appendChild(noSrcCode1);
+    noSrcHint.appendChild(document.createTextNode(" or "));
+    noSrcHint.appendChild(noSrcCode2);
+    noSrcErr.appendChild(noSrcHint);
+    skeleton.style.display = "none";
     playerWrapper.appendChild(noSrcErr);
     return;
   }
 
   let activeSourceIndex = 0;
+
+  // localStorage key for resume position — keyed by primary source URL
+  const resumeKey = "wdPlayer:resume:" + sources[0].src;
 
   const source = document.createElement("source");
   source.src = sources[activeSourceIndex].src;
@@ -173,7 +201,7 @@
       errorMsg.textContent = "Error: Video source is empty or unavailable";
       if (controls) controls.style.display = "none";
       if (bigPlayButton) bigPlayButton.style.display = "none";
-      if (skeleton) skeleton.style.display = "none";
+      skeleton.style.display = "none";
       playerWrapper.appendChild(errorMsg);
     },
     true,
@@ -305,6 +333,22 @@
       });
   });
 
+  // Resume toast — shown when a saved position is found
+  const resumeToast = document.createElement("div");
+  resumeToast.id = "resumeToast";
+  resumeToast.style.display = "none";
+  const resumeToastText = document.createElement("span");
+  const resumeBtn = document.createElement("button");
+  resumeBtn.id = "resumeBtn";
+  resumeBtn.textContent = "Resume";
+  const resumeDismissBtn = document.createElement("button");
+  resumeDismissBtn.id = "resumeDismissBtn";
+  resumeDismissBtn.textContent = "\u00d7";
+  resumeToast.appendChild(resumeToastText);
+  resumeToast.appendChild(resumeBtn);
+  resumeToast.appendChild(resumeDismissBtn);
+  playerWrapper.appendChild(resumeToast);
+
   // Create the central big play button
   const bigPlayButton = document.createElement("button");
   bigPlayButton.id = "bigPlayButton";
@@ -367,6 +411,11 @@
   });
   playerWrapper.appendChild(thumbVideo);
 
+  const muteButton = document.createElement("button");
+  muteButton.id = "muteButton";
+  muteButton.title = "Mute";
+  muteButton.replaceChildren(getIcon("volumeHigh"));
+
   const volumeSlider = document.createElement("input");
   volumeSlider.id = "volumeSlider";
   volumeSlider.type = "range";
@@ -388,7 +437,7 @@
   qualityMenu.classList.add("hidden");
 
   // Auto mode state
-  let isAutoMode = true;
+  let isAutoMode = false;
   let autoCheckInterval = null;
 
   // Measure effective downlink in Mbps.
@@ -479,8 +528,8 @@
     }
   };
 
-  // Start in auto mode immediately
-  startAutoMode();
+  // Start in auto mode immediately (only useful with multiple sources)
+  if (sources.length > 1) startAutoMode();
 
   // Populate quality menu (Auto + manual options)
   const populateQualityMenu = () => {
@@ -552,7 +601,7 @@
     subtitleMenu.appendChild(offBtn);
 
     // Build entries for each configured track
-    subtitleTracks.forEach(({ label, src, type }, idx) => {
+    subtitleTracks.forEach(({ label, src, type }) => {
       const isAss = type === "ass";
       // Determine if this entry is currently active
       let isActive = false;
@@ -606,19 +655,23 @@
   });
 
   // Add all controls to the controls container
+  const volumeGroup = document.createElement("div");
+  volumeGroup.id = "volumeGroup";
+  volumeGroup.append(muteButton, volumeSlider);
+
   controls.append(
     playButton,
     timerDisplay,
     progressBar,
-    volumeSlider,
+    volumeGroup,
     qualityButton,
     ...(subtitleTracks.length ? [ccButton] : []),
     fullScreenButton,
   );
 
   // Subtitle and quality menus are absolutely positioned inside the player wrapper
-  playerWrapper.appendChild(subtitleMenu);
-  playerWrapper.appendChild(qualityMenu);
+  if (subtitleTracks.length) playerWrapper.appendChild(subtitleMenu);
+  if (sources.length > 1) playerWrapper.appendChild(qualityMenu);
 
   // Format seconds as mm:ss
   const formatTime = (seconds) => {
@@ -660,20 +713,27 @@
 
   // Remove skeleton loader and set initial timer when video metadata is ready
   video.addEventListener("loadedmetadata", () => {
-    if (skeleton) {
-      skeleton.style.opacity = "0";
-      setTimeout(() => skeleton.remove(), 500);
-    }
+    skeleton.style.opacity = "0";
+    setTimeout(() => skeleton.remove(), 500);
     timerDisplay.textContent = `0:00 / ${formatTime(video.duration)}`;
+    document.title = source.src.split("/").pop().split("?")[0];
 
-    // Get the video source URL (may be absolute or relative)
-    const videoSrc = source.src;
-
-    // Extract just the file name from the URL (removes any query params)
-    const videoFileName = videoSrc.split("/").pop().split("?")[0];
-
-    // Set the page <title> to show the currently playing file name
-    document.title = videoFileName;
+    // Show resume toast if there's a saved position more than 5s in and not near the end
+    try {
+      const saved = parseFloat(localStorage.getItem(resumeKey));
+      if (saved && saved > 5 && saved < video.duration - 10) {
+        resumeToastText.textContent = `Resume from ${formatTime(saved)}?`;
+        resumeToast.style.display = "flex";
+        resumeBtn.onclick = () => {
+          video.currentTime = saved;
+          resumeToast.style.display = "none";
+        };
+        resumeDismissBtn.onclick = () => {
+          resumeToast.style.display = "none";
+          localStorage.removeItem(resumeKey);
+        };
+      }
+    } catch (_) {}
   });
 
   // Show buffering spinner when video is waiting/buffering
@@ -696,6 +756,9 @@
   video.addEventListener("ended", () => {
     bufferingSpinner.style.display = "none";
     updateUIState();
+    try {
+      localStorage.removeItem(resumeKey);
+    } catch (_) {}
   });
   video.addEventListener("canplay", () => {
     bufferingSpinner.style.display = "none";
@@ -715,7 +778,8 @@
   };
   video.addEventListener("progress", updateBuffered);
 
-  // Single timeupdate handler: update buffered bar + progress + timer
+  // Single timeupdate handler: update buffered bar + progress + timer + save position
+  let lastSaveTime = 0;
   video.addEventListener("timeupdate", () => {
     updateBuffered();
     if (!isNaN(video.duration)) {
@@ -723,6 +787,14 @@
       updateRangeValue(progressBar);
     }
     timerDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+    // Save position every 5 seconds
+    const now = video.currentTime;
+    if (now - lastSaveTime >= 5) {
+      lastSaveTime = now;
+      try {
+        localStorage.setItem(resumeKey, now);
+      } catch (_) {}
+    }
   });
 
   // Show thumbnail + time tooltip on progress bar hover
@@ -772,17 +844,37 @@
     }
   });
 
+  // Mute/unmute toggle
+  let volumeBeforeMute = 1;
+  muteButton.addEventListener("click", () => {
+    if (video.muted || video.volume === 0) {
+      video.muted = false;
+      video.volume = volumeBeforeMute || 1;
+    } else {
+      volumeBeforeMute = video.volume;
+      video.muted = true;
+    }
+  });
+
   // Change volume when volume slider is changed
   volumeSlider.addEventListener("input", () => {
+    video.muted = false;
     video.volume = volumeSlider.value;
     updateRangeValue(volumeSlider);
   });
 
-  // Sync volume slider if volume is changed programmatically
-  video.addEventListener("volumechange", () => {
-    volumeSlider.value = video.volume;
+  // Sync volume slider and mute button icon on any volume change
+  const updateVolumeUI = () => {
+    const vol = video.muted ? 0 : video.volume;
+    volumeSlider.value = video.muted ? 0 : video.volume;
     updateRangeValue(volumeSlider);
-  });
+    const iconName =
+      vol === 0 ? "volumeMuted" : vol < 0.5 ? "volumeLow" : "volumeHigh";
+    muteButton.replaceChildren(getIcon(iconName));
+    muteButton.title = vol === 0 ? "Unmute" : "Mute";
+  };
+
+  video.addEventListener("volumechange", updateVolumeUI);
 
   // Button event listeners
   playButton.addEventListener("click", playPauseVideo);
@@ -823,10 +915,10 @@
   // Initial UI and CSS variable setup
   updateUIState();
   updateRangeValue(progressBar);
-  updateRangeValue(volumeSlider);
+  updateVolumeUI();
 
   // Keyboard shortcuts:
-  // Space = play/pause, F = fullscreen
+  // Space = play/pause, F = fullscreen, M = mute
   // ArrowRight/Left = seek 5s, ArrowUp/Down = volume 10%
   document.addEventListener("keydown", (e) => {
     if (document.activeElement.tagName === "INPUT") return;
@@ -838,7 +930,9 @@
       case "KeyF":
         toggleFullScreen();
         break;
-
+      case "KeyM":
+        muteButton.click();
+        break;
       case "ArrowRight":
         e.preventDefault();
         video.currentTime = Math.min(video.duration, video.currentTime + 5);
@@ -888,9 +982,10 @@
     }
   });
 
-  // Schedule hide when video starts playing (fullscreen only)
+  // Schedule hide when video starts playing (fullscreen only) + hide resume toast
   video.addEventListener("play", () => {
     if (document.fullscreenElement === playerWrapper) scheduleControlsHide();
+    resumeToast.style.display = "none";
   });
 
   // Always show controls when paused
@@ -915,25 +1010,38 @@
       return;
     }
 
-    const quality = isAutoMode
-      ? `Auto (${sources[activeSourceIndex].label})`
-      : sources[activeSourceIndex].label;
-
-    const activeSub = (() => {
-      if (activeAssTrackSrc) {
-        const t = subtitleTracks.find((s) => s.src === activeAssTrackSrc);
-        return t ? `${t.label} (ASS)` : "ASS";
-      }
-      const showing = Array.from(video.textTracks).find(
-        (t) => t.mode === "showing",
-      );
-      return showing ? `${showing.label} (VTT)` : "None";
-    })();
-
     const rows = [
       ["wdPlayer", "v1.0"],
-      ...(sources.length > 1 ? [["Quality", quality]] : []),
-      ...(subtitleTracks.length ? [["Subtitles", activeSub]] : []),
+      ...(sources.length > 1
+        ? [
+            [
+              "Quality",
+              isAutoMode
+                ? `Auto (${sources[activeSourceIndex].label})`
+                : sources[activeSourceIndex].label,
+            ],
+          ]
+        : []),
+      ...(subtitleTracks.length
+        ? [
+            [
+              "Subtitles",
+              (() => {
+                if (activeAssTrackSrc) {
+                  const t = subtitleTracks.find(
+                    (s) => s.src === activeAssTrackSrc,
+                  );
+                  return t ? `${t.label} (ASS)` : "ASS";
+                }
+                const showing = Array.from(video.textTracks).find(
+                  (t) => t.mode === "showing",
+                );
+                return showing ? `${showing.label} (VTT)` : "None";
+              })(),
+            ],
+          ]
+        : []),
+
       [
         "Resolution",
         video.videoWidth ? `${video.videoWidth}×${video.videoHeight}` : "—",

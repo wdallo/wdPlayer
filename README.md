@@ -1,6 +1,6 @@
 # wdPlayer
 
-Lightweight, dependency-free HTML5 video player with quality switching, ASS/VTT subtitles, and URL-encoded configuration.
+Lightweight, dependency-free HTML5 video player with quality switching, ASS/VTT subtitles, resume playback, and URL-encoded configuration.
 
 ![wdPlayer screenshot 1](screenShots/1.jpg)
 ![wdPlayer screenshot 2](screenShots/2.jpg)
@@ -129,6 +129,7 @@ Copy the iFrame snippet directly from the **Encoded → iFrame** tab in the gene
 | ------------------ | ----------------- |
 | `Space` / click    | Play / Pause      |
 | `F` / double-click | Toggle fullscreen |
+| `M`                | Toggle mute       |
 | `←` `→`            | Seek ±5 s         |
 | `↑` `↓`            | Volume ±10%       |
 | Right-click        | Info context menu |
@@ -141,6 +142,17 @@ On load the player measures bandwidth via `navigator.connection.downlink` (or a 
 
 ---
 
+## Resume playback
+
+The player automatically saves the current position to `localStorage` every 5 seconds (keyed by the primary source URL). On the next visit, if a saved position is found that is more than 5 seconds in and not within 10 seconds of the end, a **"Resume from X:XX?"** toast appears in the bottom-left corner with two options:
+
+- **Resume** — seeks to the saved position
+- **×** — dismisses and clears the saved position
+
+The toast also disappears automatically when playback starts. The saved position is cleared when the video finishes.
+
+---
+
 ## No server required
 
-All configuration is self-contained in the URL. No backend, no localStorage, no cookies. Works in incognito, on other devices, or shared as a plain link.
+All configuration is self-contained in the URL. Works in incognito, on other devices, or shared as a plain link.
