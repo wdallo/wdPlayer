@@ -4,6 +4,7 @@ Lightweight, dependency-free HTML5 video player with quality switching, ASS/VTT 
 
 ![wdPlayer screenshot 1](screenShots/1.jpg)
 ![wdPlayer screenshot 2](screenShots/2.jpg)
+![wdPlayer screenshot 2](screenShots/3.jpg)
 
 ## Files
 
@@ -79,17 +80,20 @@ const cfg = {
 // Minify keys before encoding (sources→v, subtitles→u, label→l, src→s, type→t, srclang→sl)
 const mini = {
   v: cfg.sources.map(({ label: l, src: s, type: t }) => ({ l, s, t })),
-  u: cfg.subtitles.map(({ label: l, src: s, type: t, srclang: sl }) => ({
-    l,
-    s,
-    t,
-    sl,
-  })),
+  u: cfg.subtitles.map(({ label: l, src: s, type: t, srclang: sl }) =>
+    sl ? { l, s, t, sl } : { l, s, t },
+  ),
 };
 
+// Unicode-safe Base64 encoding
 const url =
   "embed.html?v=" +
-  btoa(JSON.stringify(mini))
+  btoa(
+    encodeURIComponent(JSON.stringify(mini)).replace(
+      /%([0-9A-F]{2})/gi,
+      (_, p1) => String.fromCharCode(parseInt(p1, 16)),
+    ),
+  )
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
