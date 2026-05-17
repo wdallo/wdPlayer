@@ -56,8 +56,10 @@ body {
   height: 22px;
   fill: currentColor;
 }
-#ccButton:hover {
-  transform: scale(1.1);
+@media (hover: hover) {
+  #ccButton:hover {
+    transform: scale(1.1);
+  }
 }
 
 #subtitleMenu,
@@ -94,9 +96,11 @@ body {
   border-radius: 0;
   transition: background 0.15s;
 }
-#subtitleMenu button:hover,
-#qualityMenu button:hover {
-  background: #222;
+@media (hover: hover) {
+  #subtitleMenu button:hover,
+  #qualityMenu button:hover {
+    background: #222;
+  }
 }
 
 #qualityMenu {
@@ -121,8 +125,10 @@ body {
   text-overflow: ellipsis;
   flex-shrink: 0;
 }
-#qualityButton:hover {
-  background: rgba(255, 255, 255, 0.22);
+@media (hover: hover) {
+  #qualityButton:hover {
+    background: rgba(255, 255, 255, 0.22);
+  }
 }
 
 /* Menu option layout (shared: subtitle + quality) */
@@ -283,10 +289,12 @@ video::-webkit-media-text-track-container {
   transition: transform 0.1s;
 }
 
-#controls button:hover {
-  transform: scale(1.1);
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
+@media (hover: hover) {
+  #controls button:hover {
+    transform: scale(1.1);
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+  }
 }
 
 #controls button svg {
@@ -450,9 +458,11 @@ input[type="range"]::-moz-range-track {
   transition: transform 0.2s ease;
 }
 
-#bigPlayButton:hover {
-  transform: translate(-50%, -50%) scale(1.1);
-  background: rgba(0, 0, 0, 0.7);
+@media (hover: hover) {
+  #bigPlayButton:hover {
+    transform: translate(-50%, -50%) scale(1.1);
+    background: rgba(0, 0, 0, 0.7);
+  }
 }
 
 #bigPlayButton svg {
@@ -581,8 +591,10 @@ input[type="range"]::-moz-range-track {
   padding: 4px 10px;
   transition: background 0.15s;
 }
-#resumeBtn:hover {
-  background: #1d4ed8;
+@media (hover: hover) {
+  #resumeBtn:hover {
+    background: #1d4ed8;
+  }
 }
 #resumeDismissBtn {
   background: none;
@@ -594,6 +606,126 @@ input[type="range"]::-moz-range-track {
   padding: 0 2px;
   transition: color 0.15s;
 }
-#resumeDismissBtn:hover {
-  color: #fff;
+@media (hover: hover) {
+  #resumeDismissBtn:hover {
+    color: #fff;
+  }
+}
+
+/* Prevent double-tap zoom delay on all interactive controls */
+#controls button,
+#bigPlayButton,
+#progressBar,
+#volumeSlider,
+#ccButton,
+#qualityButton {
+  touch-action: manipulation;
+}
+
+/* ===============================================
+   Responsive: tablets (≤ 768px)
+   =============================================== */
+@media (max-width: 768px) {
+  #controls {
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  #controls button {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 6px;
+  }
+
+  #qualityButton {
+    width: 75px;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    height: 14px;
+    width: 14px;
+  }
+}
+
+/* ===============================================
+   Responsive: phones (≤ 480px)
+   =============================================== */
+@media (max-width: 480px) {
+  /* Two-row layout: progress bar on top, buttons below */
+  #controls {
+    flex-wrap: wrap;
+    padding: 6px 10px 10px;
+    gap: 6px;
+    align-items: center;
+  }
+
+  /* Progress bar spans full width as the first row */
+  #progressBar {
+    order: -1;
+    flex-basis: 100%;
+    height: 6px;
+  }
+
+  /* Timer grows to push right-side buttons to the edge */
+  #timer {
+    flex-grow: 1;
+    font-size: 11px;
+  }
+
+  /* Hide volume slider — mute button stays */
+  #volumeSlider {
+    display: none;
+  }
+
+  #qualityButton {
+    width: auto;
+    font-size: 11px;
+    padding: 3px 7px;
+  }
+
+  /* Menus span full width on small screens */
+  #subtitleMenu,
+  #qualityMenu {
+    left: 8px;
+    right: 8px;
+    bottom: 70px;
+    min-width: unset;
+  }
+
+  /* Bigger thumb for touch */
+  input[type="range"]::-webkit-slider-thumb {
+    height: 18px;
+    width: 18px;
+  }
+
+  /* Thumbnail tooltip not useful on touch — hide it */
+  #progressTooltip {
+    display: none !important;
+  }
+
+  /* Resume toast: moved to top so it doesn't clash with bigPlayButton or controls */
+  #resumeToast {
+    top: 12px;
+    bottom: auto;
+    left: 8px;
+    right: auto;
+    font-size: 12px;
+  }
+
+  #bigPlayButton {
+    width: 58px;
+    height: 58px;
+  }
+
+  #bigPlayButton svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* Context menu: full width on phone */
+  #playerContextMenu {
+    left: 8px !important;
+    right: 8px !important;
+    min-width: unset;
+  }
 }
