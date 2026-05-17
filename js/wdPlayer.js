@@ -450,7 +450,10 @@
     }
     // Fallback: fetch a ~100 KB probe and time it
     try {
-      const probeUrl = sources[sources.length - 1].src + "?cache=" + Date.now();
+      const _probeSrc = sources[sources.length - 1].src;
+      const _probeU = new URL(_probeSrc, document.baseURI);
+      _probeU.searchParams.set("cache", Date.now());
+      const probeUrl = _probeU.href;
       const PROBE_BYTES = 100_000;
       const t0 = performance.now();
       const res = await fetch(probeUrl, { cache: "no-store" });
@@ -478,6 +481,9 @@
     }
     return sources.length - 1;
   };
+
+  // Tracks last thumbnail seek time — declared here so switchSource can reset it
+  let lastThumbSeekTime = -1;
 
   // Switch to a different source while preserving playback position
   const switchSource = (index) => {
@@ -800,7 +806,6 @@
   });
 
   // Show thumbnail + time tooltip on progress bar hover
-  let lastThumbSeekTime = -1;
   progressBar.addEventListener("mousemove", (e) => {
     if (!video.duration) return;
     // Set thumb video source lazily on first hover

@@ -1,10 +1,10 @@
 # wdPlayer
 
-Lightweight, dependency-free HTML5 video player with quality switching, ASS/VTT subtitles, resume playback, and URL-encoded configuration.
+Lightweight, dependency-free HTML5 video player with quality switching, ASS/VTT subtitles, resume playback, URL-encoded configuration, and full responsive/mobile support.
 
 ![wdPlayer screenshot 1](screenShots/1.jpg)
 ![wdPlayer screenshot 2](screenShots/2.jpg)
-![wdPlayer screenshot 2](screenShots/3.jpg)
+![wdPlayer screenshot 3](screenShots/3.jpg)
 
 ## Files
 
@@ -148,12 +148,30 @@ On load the player measures bandwidth via `navigator.connection.downlink` (or a 
 
 ## Resume playback
 
-The player automatically saves the current position to `localStorage` every 5 seconds (keyed by the primary source URL). On the next visit, if a saved position is found that is more than 5 seconds in and not within 10 seconds of the end, a **"Resume from X:XX?"** toast appears in the bottom-left corner with two options:
+The player automatically saves the current position to `localStorage` every 5 seconds (keyed by the `?v=` param). On the next visit, if a saved position is found that is more than 5 seconds in and not within 10 seconds of the end, a **"Resume from X:XX?"** toast appears with two options:
 
 - **Resume** — seeks to the saved position
 - **×** — dismisses and clears the saved position
 
-The toast also disappears automatically when playback starts. The saved position is cleared when the video finishes.
+On desktop the toast appears in the bottom-left corner. On mobile (≤ 480 px) it moves to the top of the player to avoid overlapping the play button and the two-row controls bar. The toast disappears automatically when playback starts. The saved position is cleared when the video finishes.
+
+---
+
+## Responsive / Mobile
+
+The player and both pages adapt to all screen sizes:
+
+| Breakpoint | Changes                                                                                                                                              |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ≤ 768 px   | Larger touch targets (36 px min), slightly smaller gaps                                                                                              |
+| ≤ 480 px   | Controls switch to a **two-row layout** — progress bar full-width on top, buttons on the bottom row; volume slider hidden; quality button auto-sized |
+
+Additional touch optimisations applied at all sizes:
+
+- `touch-action: manipulation` on every interactive element (no 300 ms tap delay)
+- All `:hover` styles are wrapped in `@media (hover: hover)` so they never get "stuck" after a tap on touch screens
+- Thumbnail tooltip hidden on touch (swipe seek isn't possible anyway)
+- Resume toast repositioned to the top of the player on mobile
 
 ---
 

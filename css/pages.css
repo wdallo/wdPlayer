@@ -47,8 +47,10 @@ nav a {
   font-size: 0.85rem;
   transition: color 0.15s;
 }
-nav a:hover {
-  color: #fff;
+@media (hover: hover) {
+  nav a:hover {
+    color: #fff;
+  }
 }
 
 .hero {
@@ -81,13 +83,14 @@ nav a:hover {
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid #1e1e1e;
-  aspect-ratio: 16/9;
   width: 100%;
 }
 
+/* iframe fills container and keeps 16:9 ratio */
+.player-shell iframe,
 #wdPlayerFrame {
   width: 100%;
-  height: 100%;
+  aspect-ratio: 16 / 9;
   border: none;
   display: block;
 }
@@ -202,8 +205,10 @@ select option {
   align-self: center;
   transition: color 0.15s;
 }
-.btn-remove:hover {
-  color: #e05555;
+@media (hover: hover) {
+  .btn-remove:hover {
+    color: #e05555;
+  }
 }
 
 .btn-add {
@@ -219,9 +224,11 @@ select option {
     border-color 0.15s,
     color 0.15s;
 }
-.btn-add:hover {
-  border-color: #666;
-  color: #ccc;
+@media (hover: hover) {
+  .btn-add:hover {
+    border-color: #666;
+    color: #ccc;
+  }
 }
 
 .col-label {
@@ -247,8 +254,10 @@ select option {
   transition: background 0.15s;
   align-self: flex-start;
 }
-#generateBtn:hover {
-  background: #1d4ed8;
+@media (hover: hover) {
+  #generateBtn:hover {
+    background: #1d4ed8;
+  }
 }
 
 #result {
@@ -314,9 +323,11 @@ select option {
     color 0.15s;
   flex-shrink: 0;
 }
-.copy-btn:hover {
-  background: #333;
-  color: #fff;
+@media (hover: hover) {
+  .copy-btn:hover {
+    background: #333;
+    color: #fff;
+  }
 }
 .copy-btn.copied {
   color: #4ade80;
@@ -338,8 +349,10 @@ select option {
   display: inline-flex;
   align-items: center;
 }
-.open-btn:hover {
-  background: #1d4ed8;
+@media (hover: hover) {
+  .open-btn:hover {
+    background: #1d4ed8;
+  }
 }
 
 /* ── docs / how-to-use ───────────────────────────────────────────────────── */
@@ -395,8 +408,185 @@ select option {
   color: #60a5fa;
   text-decoration: none;
 }
-.doc-step p a:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .doc-step p a:hover {
+    text-decoration: underline;
+  }
+}
+
+/* ===============================================
+   Responsive: tablets (≤ 768px)
+   =============================================== */
+@media (max-width: 768px) {
+  .hero h2 {
+    font-size: 1.6rem;
+  }
+
+  .container {
+    padding: 0 1rem;
+  }
+
+  .docs {
+    padding: 0 1rem;
+  }
+
+  .features {
+    padding: 0 1rem;
+  }
+
+  .player-wrap {
+    padding: 0 1rem;
+  }
+}
+
+/* ===============================================
+   Responsive: phones (≤ 640px)
+   =============================================== */
+@media (max-width: 640px) {
+  /* Header */
+  header {
+    padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  nav {
+    gap: 0.6rem;
+  }
+
+  /* Hero */
+  .hero {
+    margin: 1.25rem auto 1rem;
+    padding: 0 1rem;
+  }
+
+  .hero h2 {
+    font-size: 1.3rem;
+  }
+
+  .hero p {
+    font-size: 0.9rem;
+  }
+
+  /* Player */
+  .player-wrap {
+    padding: 0 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Features grid: single column */
+  .features {
+    padding: 0 0.75rem;
+    margin-bottom: 1.5rem;
+    grid-template-columns: 1fr;
+  }
+
+  /* Generator container */
+  .container {
+    padding: 0 0.75rem;
+    gap: 1.25rem;
+  }
+
+  .section {
+    padding: 1rem;
+  }
+
+  /* Source entry: URL on its own full-width row */
+  .entry.source-entry {
+    grid-template-columns: 1fr 1fr auto;
+    grid-template-rows: auto auto;
+  }
+
+  .entry.source-entry .field:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  /* Subtitle entry: URL on its own full-width row */
+  .entry.sub-entry {
+    grid-template-columns: 1fr 1fr 1fr auto;
+    grid-template-rows: auto auto;
+  }
+
+  .entry.sub-entry .field:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  /* Result URL box */
+  .url-box {
+    flex-direction: column;
+  }
+
+  .copy-btn,
+  .open-btn {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* Generate button */
+  #generateBtn {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Docs */
+  .docs {
+    padding: 0 0.75rem;
+    margin-bottom: 2rem;
+  }
+
+  .doc-step {
+    gap: 0.75rem;
+    padding: 1rem 0;
+  }
+
+  /* Footer */
+  footer {
+    padding: 1rem;
+  }
+}
+
+/* ===============================================
+   Responsive: small phones (≤ 400px)
+   =============================================== */
+@media (max-width: 400px) {
+  .hero h2 {
+    font-size: 1.15rem;
+  }
+
+  nav a {
+    font-size: 0.8rem;
+  }
+
+  /* Stack source entry fully vertical */
+  .entry.source-entry {
+    grid-template-columns: 1fr auto;
+  }
+
+  .entry.source-entry .field:nth-child(3) {
+    grid-column: 1;
+  }
+
+  /* Stack subtitle entry fully vertical */
+  .entry.sub-entry {
+    grid-template-columns: 1fr 1fr auto;
+  }
+
+  .entry.sub-entry .field:nth-child(3),
+  .entry.sub-entry .field:nth-child(4) {
+    grid-column: unset;
+  }
+
+  .result-tabs {
+    flex-wrap: wrap;
+  }
+
+  .tab-btn {
+    flex: 1;
+    text-align: center;
+  }
 }
 pre {
   background: #111;
