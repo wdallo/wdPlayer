@@ -1,6 +1,6 @@
 # wdPlayer
 
-Lightweight, dependency-free HTML5 video player with quality switching, ASS/VTT subtitles, resume playback, URL-encoded configuration, and full responsive/mobile support.
+Lightweight, dependency-free HTML5 video player with quality switching, playback speed control, adaptive buffering, ASS/VTT subtitles, resume playback, volume persistence, URL-encoded configuration, and full responsive/mobile support.
 
 ![wdPlayer screenshot 1](screenShots/1.jpg)
 ![wdPlayer screenshot 2](screenShots/2.jpg)
@@ -136,6 +136,8 @@ Copy the iFrame snippet directly from the **Encoded → iFrame** tab in the gene
 | `M`                | Toggle mute       |
 | `←` `→`            | Seek ±5 s         |
 | `↑` `↓`            | Volume ±10%       |
+| `,` / `.`          | Speed down / up   |
+| `0` – `9`          | Seek to 0% – 90%  |
 | Right-click        | Info context menu |
 
 ---
@@ -143,6 +145,30 @@ Copy the iFrame snippet directly from the **Encoded → iFrame** tab in the gene
 ## Auto quality
 
 On load the player measures bandwidth via `navigator.connection.downlink` (or a timed fetch probe as fallback) and picks the best source. It re-checks every 5 seconds and reacts to `connection` change events. Manual override is available via the quality button.
+
+If the video stalls for more than 3 seconds while in auto mode, the player immediately steps down one quality level (stall recovery).
+
+---
+
+## Playback speed
+
+A **speed button** (labelled `1×`) sits in the controls bar. Clicking it opens a menu with options: `0.5×`, `0.75×`, Normal (`1×`), `1.25×`, `1.5×`, `2×`. The button label updates to reflect the active rate.
+
+Keyboard shortcuts `,` (slower) and `.` (faster) cycle through the same rates and show a brief on-screen toast.
+
+---
+
+## Volume persistence
+
+Volume level and mute state are saved to `localStorage` and restored automatically on the next visit.
+
+---
+
+## Buffering
+
+- `preload="auto"` — the browser buffers ahead of the playhead
+- Spinner is **debounced** (300 ms delay) so it does not flash during quick seeks
+- **Stall recovery** — if buffering persists for 3 s in auto mode, the player steps down one quality level immediately
 
 ---
 
@@ -161,10 +187,10 @@ On desktop the toast appears in the bottom-left corner. On mobile (≤ 480 px) i
 
 The player and both pages adapt to all screen sizes:
 
-| Breakpoint | Changes                                                                                                                                              |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ≤ 768 px   | Larger touch targets (36 px min), slightly smaller gaps                                                                                              |
-| ≤ 480 px   | Controls switch to a **two-row layout** — progress bar full-width on top, buttons on the bottom row; volume slider hidden; quality button auto-sized |
+| Breakpoint | Changes                                                                                                                                                              |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ≤ 768 px   | Larger touch targets (36 px min), slightly smaller gaps                                                                                                              |
+| ≤ 480 px   | Controls switch to a **two-row layout** — progress bar full-width on top, buttons on the bottom row; mute button and volume slider hidden; quality button auto-sized |
 
 Additional touch optimisations applied at all sizes:
 
