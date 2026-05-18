@@ -12,6 +12,27 @@ body {
   background: #000;
   overflow: hidden;
 }
+/* Speed OSD toast */
+#speedToast {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  padding: 10px 22px;
+  border-radius: 10px;
+  pointer-events: none;
+  z-index: 130;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+#speedToast.visible {
+  opacity: 1;
+}
+
 #bufferingSpinner {
   position: absolute;
   inset: 0;
@@ -63,7 +84,8 @@ body {
 }
 
 #subtitleMenu,
-#qualityMenu {
+#qualityMenu,
+#speedMenu {
   position: absolute;
   bottom: 60px;
   right: 40px;
@@ -81,11 +103,13 @@ body {
   gap: 2px;
 }
 #subtitleMenu.hidden,
-#qualityMenu.hidden {
+#qualityMenu.hidden,
+#speedMenu.hidden {
   display: none;
 }
 #subtitleMenu button,
-#qualityMenu button {
+#qualityMenu button,
+#speedMenu button {
   background: none;
   border: none;
   color: #fff;
@@ -98,13 +122,43 @@ body {
 }
 @media (hover: hover) {
   #subtitleMenu button:hover,
-  #qualityMenu button:hover {
+  #qualityMenu button:hover,
+  #speedMenu button:hover {
     background: #222;
   }
 }
 
 #qualityMenu {
-  right: 75px;
+  right: 165px;
+}
+#subtitleMenu {
+  right: 85px;
+}
+#speedMenu {
+  right: 45px;
+}
+
+/* Speed button — styled like quality button */
+#speedButton {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+  width: 45px;
+  text-align: center;
+  flex-shrink: 0;
+}
+@media (hover: hover) {
+  #speedButton:hover {
+    background: rgba(255, 255, 255, 0.22);
+  }
 }
 
 #qualityButton {
@@ -131,9 +185,10 @@ body {
   }
 }
 
-/* Menu option layout (shared: subtitle + quality) */
+/* Menu option layout (shared: subtitle + quality + speed) */
 #subtitleMenu .subtitle-option,
-#qualityMenu .subtitle-option {
+#qualityMenu .subtitle-option,
+#speedMenu .subtitle-option {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -141,7 +196,8 @@ body {
   padding-left: 9px;
 }
 #subtitleMenu .subtitle-option.active,
-#qualityMenu .subtitle-option.active {
+#qualityMenu .subtitle-option.active,
+#speedMenu .subtitle-option.active {
   border-left-color: #fff;
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
@@ -672,8 +728,8 @@ input[type="range"]::-moz-range-track {
     font-size: 11px;
   }
 
-  /* Hide volume slider — mute button stays */
-  #volumeSlider {
+  /* Hide volume controls entirely on phones — use system volume */
+  #volumeGroup {
     display: none;
   }
 

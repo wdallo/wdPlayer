@@ -19,6 +19,21 @@
   bufferingSpinner.style.display = "none";
   playerWrapper.appendChild(bufferingSpinner);
 
+  // Speed OSD toast — briefly shows current playback rate when changed via keyboard
+  const speedToast = document.createElement("div");
+  speedToast.id = "speedToast";
+  playerWrapper.appendChild(speedToast);
+  let speedToastTimer = null;
+  const showSpeedToast = (rate) => {
+    speedToast.textContent = `${rate}\u00d7`;
+    speedToast.classList.add("visible");
+    clearTimeout(speedToastTimer);
+    speedToastTimer = setTimeout(
+      () => speedToast.classList.remove("visible"),
+      800,
+    );
+  };
+
   // SVG icon definitions for controls
   const icons = {
     play: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><polygon points="8,5 19,12 8,19" /></svg>`,
@@ -63,7 +78,7 @@
   // Create the video element and add it to the player
   const video = document.createElement("video");
   video.id = "wd";
-  video.preload = "metadata";
+  video.preload = "auto";
   playerWrapper.appendChild(video);
 
   // Encode/decode config as URL-safe Base64 with minified keys (shorter URL)
@@ -425,6 +440,15 @@
   volumeSlider.max = 1;
   volumeSlider.step = 0.01;
   volumeSlider.value = 1;
+  // Restore saved volume preference from previous session
+  try {
+    const _sv = parseFloat(localStorage.getItem("wdPlayer:volume"));
+    if (!isNaN(_sv)) {
+      video.volume = _sv;
+      volumeSlider.value = _sv;
+    }
+    if (localStorage.getItem("wdPlayer:muted") === "1") video.muted = true;
+  } catch (_) {}
 
   // Create Quality Button
   const qualityButton = document.createElement("button");
@@ -438,6 +462,48 @@
   qualityMenu.id = "qualityMenu";
   qualityMenu.classList.add("hidden");
 
+  // Create Speed Button
+  const speedButton = document.createElement("button");
+  speedButton.id = "speedButton";
+  speedButton.title = "Playback speed";
+  speedButton.textContent = "1\u00d7";
+
+  // Create Speed Menu
+  const speedMenu = document.createElement("div");
+  speedMenu.id = "speedMenu";
+  speedMenu.classList.add("hidden");
+
+  const SPEED_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+  const updateSpeedLabel = () => {
+    speedButton.textContent = `${video.playbackRate}\u00d7`;
+  };
+
+  const populateSpeedMenu = () => {
+    speedMenu.replaceChildren();
+    SPEED_RATES.forEach((rate) => {
+      const btn = document.createElement("button");
+      btn.classList.add("subtitle-option");
+      if (video.playbackRate === rate) btn.classList.add("active");
+      btn.textContent = rate === 1 ? "Normal" : `${rate}\u00d7`;
+      btn.addEventListener("click", () => {
+        video.playbackRate = rate;
+        updateSpeedLabel();
+        populateSpeedMenu();
+        speedMenu.classList.add("hidden");
+      });
+      speedMenu.appendChild(btn);
+    });
+  };
+
+  speedButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    populateSpeedMenu();
+    speedMenu.classList.toggle("hidden");
+    subtitleMenu.classList.add("hidden");
+    qualityMenu.classList.add("hidden");
+  });
+
   // Auto mode state
   let isAutoMode = false;
   let autoCheckInterval = null;
@@ -445,7 +511,7 @@
   // Measure effective downlink in Mbps.
   // Uses navigator.connection when available; falls back to a timed fetch.
   const measureBandwidth = async () => {
-    if (navigator.connection && navigator.connection.downlink) {
+    if (navigator.connection && navigator.connection.downlink > 0) {
       return navigator.connection.downlink; // Mbps
     }
     // Fallback: fetch a ~100 KB probe and time it
@@ -584,6 +650,7 @@
     populateQualityMenu();
     qualityMenu.classList.toggle("hidden");
     subtitleMenu.classList.add("hidden");
+    speedMenu.classList.add("hidden");
   });
 
   // Populate the subtitle menu — handles both VTT (native tracks) and ASS (Octopus)
@@ -654,12 +721,14 @@
     populateSubtitleMenu();
     subtitleMenu.classList.toggle("hidden");
     qualityMenu.classList.add("hidden");
+    speedMenu.classList.add("hidden");
   });
 
-  // Close subtitle and quality menus when clicking outside
+  // Close all menus when clicking outside
   document.addEventListener("click", () => {
     subtitleMenu.classList.add("hidden");
     qualityMenu.classList.add("hidden");
+    speedMenu.classList.add("hidden");
   });
 
   // Add all controls to the controls container
@@ -674,12 +743,14 @@
     volumeGroup,
     qualityButton,
     ...(subtitleTracks.length ? [ccButton] : []),
+    speedButton,
     fullScreenButton,
   );
 
-  // Subtitle and quality menus are absolutely positioned inside the player wrapper
+  // Subtitle, quality, and speed menus are absolutely positioned inside the player wrapper
   if (subtitleTracks.length) playerWrapper.appendChild(subtitleMenu);
   if (sources.length > 1) playerWrapper.appendChild(qualityMenu);
+  playerWrapper.appendChild(speedMenu);
 
   // Format seconds as mm:ss
   const formatTime = (seconds) => {
@@ -745,31 +816,62 @@
   });
 
   // Show buffering spinner when video is waiting/buffering
+  // Debounced: only show spinner if buffering lasts longer than 300ms (avoids flash on seeks)
   let wasWaiting = false;
-  video.addEventListener("waiting", () => {
+  let bufferingDebounceTimer = null;
+  // Stall recovery: if buffering >3s in auto mode, immediately step down one quality level
+  let stallRecoveryTimer = null;
+
+  const showBufferingSpinner = () => {
     bufferingSpinner.style.display = "flex";
+  };
+
+  const hideBufferingSpinner = () => {
+    clearTimeout(bufferingDebounceTimer);
+    bufferingDebounceTimer = null;
+    clearTimeout(stallRecoveryTimer);
+    stallRecoveryTimer = null;
+    bufferingSpinner.style.display = "none";
+  };
+
+  video.addEventListener("waiting", () => {
     wasWaiting = true;
-    if (isAutoMode) runAutoCheck(); // connection likely degraded
+    // Debounce: show spinner only after 300ms of continuous buffering
+    clearTimeout(bufferingDebounceTimer);
+    bufferingDebounceTimer = setTimeout(showBufferingSpinner, 300);
+    if (isAutoMode) {
+      runAutoCheck();
+      // Stall recovery: step down one quality level after 3s of stalling
+      clearTimeout(stallRecoveryTimer);
+      stallRecoveryTimer = setTimeout(() => {
+        if (activeSourceIndex < sources.length - 1) {
+          stopAutoMode();
+          switchSource(activeSourceIndex + 1);
+          updateQualityLabel();
+          populateQualityMenu();
+        }
+      }, 3000);
+    }
   });
   video.addEventListener("playing", () => {
-    bufferingSpinner.style.display = "none";
+    hideBufferingSpinner();
     if (wasWaiting && isAutoMode) {
       wasWaiting = false;
       runAutoCheck();
     } // may have recovered
   });
   video.addEventListener("pause", () => {
-    bufferingSpinner.style.display = "none";
+    hideBufferingSpinner();
   });
   video.addEventListener("ended", () => {
-    bufferingSpinner.style.display = "none";
+    hideBufferingSpinner();
     updateUIState();
     try {
       localStorage.removeItem(resumeKey);
     } catch (_) {}
   });
   video.addEventListener("canplay", () => {
-    bufferingSpinner.style.display = "none";
+    hideBufferingSpinner();
   });
 
   // Update buffered range CSS variable on the progress bar
@@ -789,7 +891,6 @@
   // Single timeupdate handler: update buffered bar + progress + timer + save position
   let lastSaveTime = 0;
   video.addEventListener("timeupdate", () => {
-    updateBuffered();
     if (!isNaN(video.duration)) {
       progressBar.value = (video.currentTime / video.duration) * 100;
       updateRangeValue(progressBar);
@@ -879,6 +980,10 @@
       vol === 0 ? "volumeMuted" : vol < 0.5 ? "volumeLow" : "volumeHigh";
     muteButton.replaceChildren(getIcon(iconName));
     muteButton.title = vol === 0 ? "Unmute" : "Mute";
+    try {
+      localStorage.setItem("wdPlayer:volume", video.volume);
+      localStorage.setItem("wdPlayer:muted", video.muted ? "1" : "0");
+    } catch (_) {}
   };
 
   video.addEventListener("volumechange", updateVolumeUI);
@@ -956,6 +1061,36 @@
         e.preventDefault();
         video.volume = Math.max(0, parseFloat((video.volume - 0.1).toFixed(2)));
         break;
+      case "Comma":
+        e.preventDefault();
+        {
+          const rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
+          const ci = rates.indexOf(video.playbackRate);
+          if (ci > 0) {
+            video.playbackRate = rates[ci - 1];
+            showSpeedToast(rates[ci - 1]);
+            updateSpeedLabel();
+          }
+        }
+        break;
+      case "Period":
+        e.preventDefault();
+        {
+          const rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
+          const ci = rates.indexOf(video.playbackRate);
+          if (ci !== -1 && ci < rates.length - 1) {
+            video.playbackRate = rates[ci + 1];
+            showSpeedToast(rates[ci + 1]);
+            updateSpeedLabel();
+          }
+        }
+        break;
+      default:
+        if (e.code.startsWith("Digit") && video.duration) {
+          e.preventDefault();
+          video.currentTime =
+            (parseInt(e.code.replace("Digit", ""), 10) / 10) * video.duration;
+        }
     }
   });
 
@@ -1053,6 +1188,7 @@
         "Resolution",
         video.videoWidth ? `${video.videoWidth}×${video.videoHeight}` : "—",
       ],
+      ["Speed", `${video.playbackRate}×`],
       ["Volume", `${Math.round(video.volume * 100)}%`],
     ];
 
