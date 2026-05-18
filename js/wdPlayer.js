@@ -891,10 +891,14 @@
     });
   } // end TOOLTIPS_ENABLED
 
-  // Format seconds as mm:ss
-  const formatTime = (seconds) => {
-    const min = Math.floor(seconds / 60);
+  // Format seconds as [h:]mm:ss; pass forceHours=true to always include the hour component
+  const formatTime = (seconds, forceHours = false) => {
+    const h = Math.floor(seconds / 3600);
+    const min = Math.floor((seconds % 3600) / 60);
     const sec = Math.floor(seconds % 60);
+    if (h > 0 || forceHours) {
+      return `${h}:${min < 10 ? "0" : ""}${min}:${sec < 10 ? "0" : ""}${sec}`;
+    }
     return `${min}:${sec < 10 ? "0" : ""}${sec}`;
   };
 
@@ -1034,7 +1038,8 @@
       progressBar.value = (video.currentTime / video.duration) * 100;
       updateRangeValue(progressBar);
     }
-    timerDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+    const _longVideo = video.duration >= 3600;
+    timerDisplay.textContent = `${formatTime(video.currentTime, _longVideo)} / ${formatTime(video.duration)}`;
     // Save position every 5 seconds
     const now = video.currentTime;
     if (now - lastSaveTime >= 5) {
@@ -1056,7 +1061,10 @@
       Math.min(1, (e.clientX - rect.left) / rect.width),
     );
     const hoverTime = ratio * video.duration;
-    progressTooltipTime.textContent = formatTime(hoverTime);
+    progressTooltipTime.textContent = formatTime(
+      hoverTime,
+      video.duration >= 3600,
+    );
     // Throttle seeks: only seek if hovered time changed by more than 0.5s
     if (Math.abs(hoverTime - lastThumbSeekTime) > 0.5) {
       lastThumbSeekTime = hoverTime;
