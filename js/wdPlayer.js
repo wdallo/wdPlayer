@@ -233,6 +233,7 @@
   // Create CC Button — hidden by default, shown only if a subtitle track loads successfully
   const ccButton = document.createElement("button");
   ccButton.id = "ccButton";
+  ccButton.setAttribute("aria-label", "Subtitles");
   ccButton.style.display = "none";
   ccButton.replaceChildren(getIcon("cc"));
 
@@ -369,6 +370,7 @@
   resumeBtn.textContent = "Resume";
   const resumeDismissBtn = document.createElement("button");
   resumeDismissBtn.id = "resumeDismissBtn";
+  resumeDismissBtn.setAttribute("aria-label", "Dismiss");
   resumeDismissBtn.textContent = "\u00d7";
   resumeToast.appendChild(resumeToastText);
   resumeToast.appendChild(resumeBtn);
@@ -378,6 +380,7 @@
   // Create the central big play button
   const bigPlayButton = document.createElement("button");
   bigPlayButton.id = "bigPlayButton";
+  bigPlayButton.setAttribute("aria-label", "Play");
   bigPlayButton.replaceChildren(getIcon("play"));
   playerWrapper.appendChild(bigPlayButton);
 
@@ -389,10 +392,12 @@
   // Create control buttons and elements
   const playButton = document.createElement("button");
   playButton.id = "playPause";
+  playButton.setAttribute("aria-label", "Play");
   playButton.replaceChildren(getIcon("play"));
 
   const fullScreenButton = document.createElement("button");
   fullScreenButton.id = "fullScreen";
+  fullScreenButton.setAttribute("aria-label", "Enter fullscreen");
   fullScreenButton.replaceChildren(getIcon("fullscreen"));
 
   const timerDisplay = document.createElement("span");
@@ -402,6 +407,7 @@
   const progressBar = document.createElement("input");
   progressBar.id = "progressBar";
   progressBar.type = "range";
+  progressBar.setAttribute("aria-label", "Seek");
   progressBar.value = 0;
   progressBar.max = 100;
   progressBar.step = 0.1;
@@ -439,11 +445,13 @@
 
   const muteButton = document.createElement("button");
   muteButton.id = "muteButton";
+  muteButton.setAttribute("aria-label", "Mute");
   muteButton.replaceChildren(getIcon("volumeHigh"));
 
   const volumeSlider = document.createElement("input");
   volumeSlider.id = "volumeSlider";
   volumeSlider.type = "range";
+  volumeSlider.setAttribute("aria-label", "Volume");
   volumeSlider.min = 0;
   volumeSlider.max = 1;
   volumeSlider.step = 0.01;
@@ -544,12 +552,54 @@
     }
   };
 
-  // Pick best source index based on Mbps
-  // Assumes sources are ordered best→worst (highest bitrate first)
-  const bandwidthThresholds = [5, 2]; // Mbps needed for sources[0], sources[1]; else sources[2]
+  // Bandwidth smoothing — median of last 3 measurements to filter noise
+  const _bwHistory = [];
+  const _BW_HISTORY_SIZE = 3;
+  const _smoothBandwidth = (mbps) => {
+    _bwHistory.push(mbps);
+    if (_bwHistory.length > _BW_HISTORY_SIZE) _bwHistory.shift();
+    const s = [..._bwHistory].sort((a, b) => a - b);
+    return s[Math.floor(s.length / 2)];
+  };
+
+  // Cooldown: don't upgrade quality more than once per 10 s
+  let _lastUpgradeTime = 0;
+  const _UPGRADE_COOLDOWN_MS = 10_000;
+
+  // Hysteresis: need 20% more bandwidth to upgrade, allow 15% drop before downgrade
+  const _HYST_UP = 1.2;
+  const _HYST_DOWN = 0.85;
+
+  // Thresholds in Mbps (best→worst boundary). Preset [5, 2] auto-extended for >3 sources.
+  const bandwidthThresholds = (() => {
+    const base = [5, 2];
+    const need = sources.length - 1;
+    if (need <= 0) return [];
+    if (need <= base.length) return base.slice(0, need);
+    const step = base[base.length - 1] / (need - base.length + 1);
+    const extra = Array.from({ length: need - base.length }, (_, i) =>
+      parseFloat((base[base.length - 1] - step * (i + 1)).toFixed(2)),
+    );
+    return [...base, ...extra];
+  })();
+
+  // Pick best source index with hysteresis and upgrade cooldown
   const getBestSourceIndex = (mbps) => {
-    const i = bandwidthThresholds.findIndex((bw) => mbps >= bw);
-    return i === -1 ? sources.length - 1 : i;
+    const upIdx = bandwidthThresholds.findIndex((bw) => mbps >= bw * _HYST_UP);
+    const targetUp = upIdx === -1 ? sources.length - 1 : upIdx;
+
+    const downIdx = bandwidthThresholds.findIndex(
+      (bw) => mbps >= bw * _HYST_DOWN,
+    );
+    const targetDown = downIdx === -1 ? sources.length - 1 : downIdx;
+
+    if (targetDown > activeSourceIndex) return targetDown; // downgrade immediately
+    if (targetUp < activeSourceIndex) {
+      if (Date.now() - _lastUpgradeTime >= _UPGRADE_COOLDOWN_MS)
+        return targetUp;
+      return activeSourceIndex; // cooldown active, wait
+    }
+    return activeSourceIndex; // no change needed
   };
 
   // Tracks last thumbnail seek time — declared here so switchSource can reset it
@@ -579,16 +629,22 @@
 
   // Run one auto-quality check
   const runAutoCheck = async () => {
-    const mbps = await measureBandwidth();
-    if (mbps === null) return;
+    const raw = await measureBandwidth();
+    if (raw === null) return;
+    const mbps = _smoothBandwidth(raw);
     const best = getBestSourceIndex(mbps);
+    if (best === activeSourceIndex) return;
+    const isUpgrade = best < activeSourceIndex;
     switchSource(best);
+    if (isUpgrade) _lastUpgradeTime = Date.now();
     updateQualityLabel();
   };
 
   // Start/stop periodic auto checks
   const startAutoMode = () => {
     isAutoMode = true;
+    _bwHistory.length = 0; // reset smoothing history when (re-)entering auto mode
+    _lastUpgradeTime = 0;
     runAutoCheck();
     autoCheckInterval = setInterval(runAutoCheck, 5_000);
     // React immediately when browser reports connection change
@@ -846,6 +902,7 @@
   const updateUIState = () => {
     const isPaused = video.paused;
     playButton.replaceChildren(getIcon(isPaused ? "play" : "pause"));
+    playButton.setAttribute("aria-label", isPaused ? "Play" : "Pause");
     bigPlayButton.style.display = isPaused ? "flex" : "none";
   };
 
@@ -1061,6 +1118,7 @@
     const iconName =
       vol === 0 ? "volumeMuted" : vol < 0.5 ? "volumeLow" : "volumeHigh";
     muteButton.replaceChildren(getIcon(iconName));
+    muteButton.setAttribute("aria-label", vol === 0 ? "Unmute" : "Mute");
     try {
       localStorage.setItem("wdPlayer:volume", video.volume);
       localStorage.setItem("wdPlayer:muted", video.muted ? "1" : "0");
@@ -1093,6 +1151,10 @@
   document.addEventListener("fullscreenchange", () => {
     fullScreenButton.replaceChildren(
       getIcon(document.fullscreenElement ? "exitFullscreen" : "fullscreen"),
+    );
+    fullScreenButton.setAttribute(
+      "aria-label",
+      document.fullscreenElement ? "Exit fullscreen" : "Enter fullscreen",
     );
     if (document.fullscreenElement === playerWrapper) {
       showControls();
