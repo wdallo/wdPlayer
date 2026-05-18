@@ -13,7 +13,8 @@ body {
   overflow: hidden;
 }
 /* Speed OSD toast */
-#speedToast {
+#speedToast,
+#ccToast {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -29,7 +30,47 @@ body {
   opacity: 0;
   transition: opacity 0.25s ease;
 }
-#speedToast.visible {
+#speedToast.visible,
+#ccToast.visible {
+  opacity: 1;
+}
+
+/* Custom tooltip */
+#playerTooltip {
+  position: absolute;
+  bottom: 62px; /* overridden by JS */
+  transform: translateX(-50%);
+  background: rgba(15, 15, 15, 0.55);
+  backdrop-filter: blur(10px);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: 5px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 115;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transform: none;
+}
+#playerTooltip kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 3px;
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 600;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.85);
+}
+#playerTooltip.visible {
   opacity: 1;
 }
 
@@ -76,6 +117,9 @@ body {
   width: 22px;
   height: 22px;
   fill: currentColor;
+}
+#ccButton.active svg {
+  fill: #00bfff !important;
 }
 @media (hover: hover) {
   #ccButton:hover {
