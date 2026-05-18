@@ -118,27 +118,33 @@ Copy the iFrame snippet directly from the **Encoded → iFrame** tab in the gene
 
 ---
 
-## Subtitle formats
+## Subtitles
 
 | Format | How                      | Notes                                       |
 | ------ | ------------------------ | ------------------------------------------- |
 | VTT    | Native `<track>` element | Validated with HEAD request before adding   |
 | ASS    | SubtitlesOctopus         | Lazy-loaded from `js/octopus/` on first use |
 
+The CC button in the controls bar highlights in cyan when a subtitle track is active. Clicking it opens a track-selection menu; pressing `C` cycles through all tracks and back to Off, with a brief on-screen toast confirming the change.
+
 ---
 
 ## Keyboard shortcuts
 
-| Key                | Action            |
-| ------------------ | ----------------- |
-| `Space` / click    | Play / Pause      |
-| `F` / double-click | Toggle fullscreen |
-| `M`                | Toggle mute       |
-| `←` `→`            | Seek ±5 s         |
-| `↑` `↓`            | Volume ±10%       |
-| `,` / `.`          | Speed down / up   |
-| `0` – `9`          | Seek to 0% – 90%  |
-| Right-click        | Info context menu |
+| Key                | Action                         |
+| ------------------ | ------------------------------ |
+| `Space` / click    | Play / Pause                   |
+| `F` / double-click | Toggle fullscreen              |
+| `M`                | Toggle mute                    |
+| `C`                | Cycle subtitle tracks (or Off) |
+| `Q`                | Cycle quality levels (or Auto) |
+| `←` `→`            | Seek ±5 s                      |
+| `↑` `↓`            | Volume ±10%                    |
+| `,` / `.`          | Speed down / up                |
+| `0` – `9`          | Seek to 0% – 90%               |
+| Right-click        | Info context menu              |
+
+Keyboard shortcut hints are shown inside button tooltips on desktop (pointer) devices. Set `TOOLTIPS_ENABLED = false` at the top of `wdPlayer.js` to disable tooltips entirely.
 
 ---
 

@@ -1,4 +1,8 @@
 (function () {
+  // ─── Config ───────────────────────────────────────────────────────────────
+  const TOOLTIPS_ENABLED = true; // set false to disable button tooltips
+  // ──────────────────────────────────────────────────────────────────────────
+
   // Get the main player wrapper element
   const playerWrapper = document.getElementById("wdPlayer");
 
@@ -19,20 +23,22 @@
   bufferingSpinner.style.display = "none";
   playerWrapper.appendChild(bufferingSpinner);
 
-  // Speed OSD toast — briefly shows current playback rate when changed via keyboard
-  const speedToast = document.createElement("div");
-  speedToast.id = "speedToast";
-  playerWrapper.appendChild(speedToast);
-  let speedToastTimer = null;
-  const showSpeedToast = (rate) => {
-    speedToast.textContent = `${rate}\u00d7`;
-    speedToast.classList.add("visible");
-    clearTimeout(speedToastTimer);
-    speedToastTimer = setTimeout(
-      () => speedToast.classList.remove("visible"),
-      800,
-    );
+  // OSD toast factory — creates a brief on-screen notification element
+  const makeOsdToast = (id) => {
+    const el = document.createElement("div");
+    el.id = id;
+    playerWrapper.appendChild(el);
+    let timer = null;
+    return (text) => {
+      el.textContent = text;
+      el.classList.add("visible");
+      clearTimeout(timer);
+      timer = setTimeout(() => el.classList.remove("visible"), 800);
+    };
   };
+  const _speedToastFn = makeOsdToast("speedToast");
+  const showSpeedToast = (rate) => _speedToastFn(`${rate}\u00d7`);
+  const showCcToast = makeOsdToast("ccToast");
 
   // SVG icon definitions for controls
   const icons = {
@@ -60,7 +66,7 @@
       }
       svg.setAttribute("width", "20");
       svg.setAttribute("height", "20");
-      svg.style.fill = "currentColor";
+      svg.setAttribute("fill", "currentColor");
       svg.style.display = "block";
       iconCache[name] = svg;
     }
@@ -227,7 +233,6 @@
   // Create CC Button — hidden by default, shown only if a subtitle track loads successfully
   const ccButton = document.createElement("button");
   ccButton.id = "ccButton";
-  ccButton.title = "Subtitles";
   ccButton.style.display = "none";
   ccButton.replaceChildren(getIcon("cc"));
 
@@ -274,11 +279,14 @@
     activeAssTrackSrc = null;
   };
 
+  const disableAllNativeTracks = () => {
+    for (const t of video.textTracks) t.mode = "disabled";
+  };
+
   // Load an ASS track via Octopus (loads the library on first use)
   const loadAssTrack = (src) => {
     destroyOctopus();
-    for (let i = 0; i < video.textTracks.length; i++)
-      video.textTracks[i].mode = "disabled";
+    disableAllNativeTracks();
     const resolvedUrl = new URL(src, document.baseURI).href;
     fetch(resolvedUrl, { method: "HEAD" })
       .then((res) => {
@@ -305,6 +313,7 @@
             fallbackFont: null,
             availableFonts: {},
           });
+          updateCcButtonState();
         });
       })
       .catch((err) => {
@@ -430,7 +439,6 @@
 
   const muteButton = document.createElement("button");
   muteButton.id = "muteButton";
-  muteButton.title = "Mute";
   muteButton.replaceChildren(getIcon("volumeHigh"));
 
   const volumeSlider = document.createElement("input");
@@ -453,7 +461,6 @@
   // Create Quality Button
   const qualityButton = document.createElement("button");
   qualityButton.id = "qualityButton";
-  qualityButton.title = "Quality";
   qualityButton.textContent = "Auto";
   if (sources.length <= 1) qualityButton.style.display = "none";
 
@@ -465,7 +472,6 @@
   // Create Speed Button
   const speedButton = document.createElement("button");
   speedButton.id = "speedButton";
-  speedButton.title = "Playback speed";
   speedButton.textContent = "1\u00d7";
 
   // Create Speed Menu
@@ -542,10 +548,8 @@
   // Assumes sources are ordered best→worst (highest bitrate first)
   const bandwidthThresholds = [5, 2]; // Mbps needed for sources[0], sources[1]; else sources[2]
   const getBestSourceIndex = (mbps) => {
-    for (let i = 0; i < bandwidthThresholds.length; i++) {
-      if (mbps >= bandwidthThresholds[i]) return i;
-    }
-    return sources.length - 1;
+    const i = bandwidthThresholds.findIndex((bw) => mbps >= bw);
+    return i === -1 ? sources.length - 1 : i;
   };
 
   // Tracks last thumbnail seek time — declared here so switchSource can reset it
@@ -668,9 +672,9 @@
     if (!anyActive) offBtn.classList.add("active");
     offBtn.appendChild(document.createTextNode("None"));
     offBtn.addEventListener("click", () => {
-      for (let i = 0; i < nativeTracks.length; i++)
-        nativeTracks[i].mode = "disabled";
+      disableAllNativeTracks();
       destroyOctopus();
+      updateCcButtonState();
       subtitleMenu.classList.add("hidden");
     });
     subtitleMenu.appendChild(offBtn);
@@ -704,15 +708,34 @@
           loadAssTrack(src);
         } else {
           destroyOctopus();
-          for (let i = 0; i < nativeTracks.length; i++) {
-            nativeTracks[i].mode =
-              nativeTracks[i].label === label ? "showing" : "disabled";
-          }
+          for (const t of nativeTracks)
+            t.mode = t.label === label ? "showing" : "disabled";
         }
+        updateCcButtonState();
         subtitleMenu.classList.add("hidden");
       });
       subtitleMenu.appendChild(btn);
     });
+  };
+
+  const getActiveSubtitleEntry = () => {
+    const nativeTracks = video.textTracks;
+    for (const track of subtitleTracks) {
+      if (track.type === "ass" && activeAssTrackSrc === track.src) return track;
+      if (track.type !== "ass") {
+        const nt = Array.from(nativeTracks).find(
+          (t) => t.label === track.label,
+        );
+        if (nt && nt.mode === "showing") return track;
+      }
+    }
+    return null;
+  };
+
+  const getActiveSubtitleLabel = () => getActiveSubtitleEntry()?.label ?? null;
+
+  const updateCcButtonState = () => {
+    ccButton.classList.toggle("active", getActiveSubtitleEntry() !== null);
   };
 
   // Toggle subtitle menu on CC button click
@@ -751,6 +774,66 @@
   if (subtitleTracks.length) playerWrapper.appendChild(subtitleMenu);
   if (sources.length > 1) playerWrapper.appendChild(qualityMenu);
   playerWrapper.appendChild(speedMenu);
+
+  // Custom tooltip
+  const playerTooltip = document.createElement("div");
+  playerTooltip.id = "playerTooltip";
+  playerWrapper.appendChild(playerTooltip);
+
+  const _tooltipEntries = [
+    [playButton, () => (video.paused ? "Play" : "Pause"), "Space"],
+    [
+      muteButton,
+      () => (video.muted || video.volume === 0 ? "Unmute" : "Mute"),
+      "M",
+    ],
+    [
+      ccButton,
+      () => {
+        const l = getActiveSubtitleLabel();
+        return l ? "Subtitles \u00b7 " + l : "Subtitles";
+      },
+      "C",
+    ],
+    [qualityButton, "Quality", "Q"],
+    [speedButton, "Speed", [",", "."]],
+    [
+      fullScreenButton,
+      () => (document.fullscreenElement ? "Exit fullscreen" : "Fullscreen"),
+      "F",
+    ],
+  ];
+  if (TOOLTIPS_ENABLED) {
+    const _tooltipHasHover = window.matchMedia("(hover: hover)").matches;
+    _tooltipEntries.forEach(([btn, label, key]) => {
+      btn.addEventListener("mouseenter", () => {
+        const text = typeof label === "function" ? label() : label;
+        playerTooltip.replaceChildren(document.createTextNode(text));
+        if (key && _tooltipHasHover) {
+          const keys = Array.isArray(key) ? key : [key];
+          keys.forEach((k) => {
+            const kbd = document.createElement("kbd");
+            kbd.textContent = k;
+            playerTooltip.appendChild(kbd);
+          });
+        }
+        const wr = playerWrapper.getBoundingClientRect();
+        const br = btn.getBoundingClientRect();
+        playerTooltip.style.bottom = wr.bottom - br.top + 8 + "px";
+        playerTooltip.classList.add("visible");
+        const tw = playerTooltip.offsetWidth;
+        const rawLeft = br.left + br.width / 2 - wr.left - tw / 2;
+        const clamped = Math.max(4, Math.min(wr.width - tw - 4, rawLeft));
+        playerTooltip.style.left = clamped + "px";
+      });
+      btn.addEventListener("mouseleave", () =>
+        playerTooltip.classList.remove("visible"),
+      );
+      btn.addEventListener("mousedown", () =>
+        playerTooltip.classList.remove("visible"),
+      );
+    });
+  } // end TOOLTIPS_ENABLED
 
   // Format seconds as mm:ss
   const formatTime = (seconds) => {
@@ -845,7 +928,6 @@
       clearTimeout(stallRecoveryTimer);
       stallRecoveryTimer = setTimeout(() => {
         if (activeSourceIndex < sources.length - 1) {
-          stopAutoMode();
           switchSource(activeSourceIndex + 1);
           updateQualityLabel();
           populateQualityMenu();
@@ -979,7 +1061,6 @@
     const iconName =
       vol === 0 ? "volumeMuted" : vol < 0.5 ? "volumeLow" : "volumeHigh";
     muteButton.replaceChildren(getIcon(iconName));
-    muteButton.title = vol === 0 ? "Unmute" : "Mute";
     try {
       localStorage.setItem("wdPlayer:volume", video.volume);
       localStorage.setItem("wdPlayer:muted", video.muted ? "1" : "0");
@@ -1045,6 +1126,54 @@
       case "KeyM":
         muteButton.click();
         break;
+      case "KeyC":
+        if (subtitleTracks.length) {
+          const nativeTracks = video.textTracks;
+          const currentIdx = subtitleTracks.findIndex(
+            ({ label, src, type }) => {
+              if (type === "ass") return activeAssTrackSrc === src;
+              const nt = Array.from(nativeTracks).find(
+                (t) => t.label === label,
+              );
+              return nt?.mode === "showing";
+            },
+          );
+          const nextIdx = currentIdx + 1;
+          if (nextIdx >= subtitleTracks.length) {
+            disableAllNativeTracks();
+            destroyOctopus();
+            showCcToast("Off");
+          } else {
+            const next = subtitleTracks[nextIdx];
+            showCcToast(`${next.label} \u00b7 ${next.type.toUpperCase()}`);
+            if (next.type === "ass") {
+              loadAssTrack(next.src);
+            } else {
+              destroyOctopus();
+              for (const t of video.textTracks)
+                t.mode = t.label === next.label ? "showing" : "disabled";
+            }
+          }
+          updateCcButtonState();
+        }
+        break;
+      case "KeyQ":
+        if (sources.length > 1) {
+          if (isAutoMode) {
+            stopAutoMode();
+            switchSource(0);
+            updateQualityLabel();
+          } else {
+            const next = activeSourceIndex + 1;
+            if (next >= sources.length) {
+              startAutoMode();
+            } else {
+              switchSource(next);
+              updateQualityLabel();
+            }
+          }
+        }
+        break;
       case "ArrowRight":
         e.preventDefault();
         video.currentTime = Math.min(video.duration, video.currentTime + 5);
@@ -1064,11 +1193,10 @@
       case "Comma":
         e.preventDefault();
         {
-          const rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
-          const ci = rates.indexOf(video.playbackRate);
+          const ci = SPEED_RATES.indexOf(video.playbackRate);
           if (ci > 0) {
-            video.playbackRate = rates[ci - 1];
-            showSpeedToast(rates[ci - 1]);
+            video.playbackRate = SPEED_RATES[ci - 1];
+            showSpeedToast(SPEED_RATES[ci - 1]);
             updateSpeedLabel();
           }
         }
@@ -1076,11 +1204,10 @@
       case "Period":
         e.preventDefault();
         {
-          const rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
-          const ci = rates.indexOf(video.playbackRate);
-          if (ci !== -1 && ci < rates.length - 1) {
-            video.playbackRate = rates[ci + 1];
-            showSpeedToast(rates[ci + 1]);
+          const ci = SPEED_RATES.indexOf(video.playbackRate);
+          if (ci !== -1 && ci < SPEED_RATES.length - 1) {
+            video.playbackRate = SPEED_RATES[ci + 1];
+            showSpeedToast(SPEED_RATES[ci + 1]);
             updateSpeedLabel();
           }
         }
@@ -1169,16 +1296,8 @@
             [
               "Subtitles",
               (() => {
-                if (activeAssTrackSrc) {
-                  const t = subtitleTracks.find(
-                    (s) => s.src === activeAssTrackSrc,
-                  );
-                  return t ? `${t.label} (ASS)` : "ASS";
-                }
-                const showing = Array.from(video.textTracks).find(
-                  (t) => t.mode === "showing",
-                );
-                return showing ? `${showing.label} (VTT)` : "None";
+                const e = getActiveSubtitleEntry();
+                return e ? `${e.label} (${e.type.toUpperCase()})` : "None";
               })(),
             ],
           ]
