@@ -1,6 +1,6 @@
 # wdPlayer
 
-Lightweight, dependency-free HTML5 video player with quality switching, playback speed control, adaptive buffering, ASS/VTT subtitles, resume playback, volume persistence, URL-encoded configuration, and full responsive/mobile support.
+Lightweight, dependency-free HTML5 video player with quality switching, playback speed control, adaptive buffering, ASS/VTT subtitles, resume playback, volume persistence, URL-encoded configuration, full responsive/mobile support, and accessibility improvements (ARIA labels, landmarks, touch targets).
 
 ![wdPlayer screenshot 1](screenShots/1.jpg)
 ![wdPlayer screenshot 2](screenShots/2.jpg)
@@ -195,7 +195,7 @@ The player and both pages adapt to all screen sizes:
 
 | Breakpoint | Changes                                                                                                                                                              |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ≤ 768 px   | Larger touch targets (36 px min), slightly smaller gaps                                                                                                              |
+| ≤ 768 px   | Larger touch targets (44 px min), slightly smaller gaps                                                                                                              |
 | ≤ 480 px   | Controls switch to a **two-row layout** — progress bar full-width on top, buttons on the bottom row; mute button and volume slider hidden; quality button auto-sized |
 
 Additional touch optimisations applied at all sizes:
@@ -204,6 +204,16 @@ Additional touch optimisations applied at all sizes:
 - All `:hover` styles are wrapped in `@media (hover: hover)` so they never get "stuck" after a tap on touch screens
 - Thumbnail tooltip hidden on touch (swipe seek isn't possible anyway)
 - Resume toast repositioned to the top of the player on mobile
+- Seek bar and quality button have a **44 px minimum touch target** height (visual track stays 4 px via `background-size`)
+
+---
+
+## Accessibility
+
+- All icon-only buttons (`play`, `pause`, `mute`, `fullscreen`, `CC`) carry `aria-label` attributes that update dynamically with the current state (e.g. `"Play"` / `"Pause"`, `"Mute"` / `"Unmute"`, `"Enter fullscreen"` / `"Exit fullscreen"`)
+- The dismiss button on the resume toast uses `aria-label="Dismiss"` instead of the bare `×` character
+- Range inputs (`progressBar`, `volumeSlider`) carry `aria-label="Seek"` and `aria-label="Volume"` respectively
+- All pages wrap their main content in a `<main>` landmark element
 
 ---
 

@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>wdPlayer URL Generator</title>
+    <meta
+      name="description"
+      content="A modern HTML5 video player with ASS and VTT subtitle support, automatic quality selection, and a user-friendly interface."
+    />
     <link rel="stylesheet" href="css/pages.css" />
     <link rel="icon" href="/fav.png" type="image/png" />
   </head>
@@ -19,49 +23,51 @@
       </nav>
     </header>
 
-    <div class="hero">
-      <h2>URL Generator</h2>
-      <p>Build encoded player URLs visually — no manual JSON required.</p>
-    </div>
-
-    <div class="container">
-      <!-- Sources -->
-      <div class="section">
-        <h2>Video Sources</h2>
-        <div class="row-list" id="sourceList"></div>
-        <button class="btn-add" id="addSource">+ Add source</button>
+    <main>
+      <div class="hero">
+        <h2>URL Generator</h2>
+        <p>Build encoded player URLs visually — no manual JSON required.</p>
       </div>
 
-      <!-- Subtitles -->
-      <div class="section">
-        <h2>
-          Subtitles
-          <span style="font-weight: 400; color: #555">(optional)</span>
-        </h2>
-        <div class="row-list" id="subList"></div>
-        <button class="btn-add" id="addSub">+ Add subtitle</button>
-      </div>
-
-      <div>
-        <button id="generateBtn">Generate URL</button>
-        <p class="err" id="errMsg">Add at least one video source.</p>
-      </div>
-
-      <!-- Result -->
-      <div id="result">
-        <div class="result-tabs">
-          <button class="tab-btn active" data-tab="encoded">Encoded</button>
-          <button class="tab-btn" data-tab="iframe">iFrame</button>
-          <button class="tab-btn" data-tab="raw">Raw</button>
+      <div class="container">
+        <!-- Sources -->
+        <div class="section">
+          <h2>Video Sources</h2>
+          <div class="row-list" id="sourceList"></div>
+          <button class="btn-add" id="addSource">+ Add source</button>
         </div>
-        <div class="url-box">
-          <span id="urlOutput"></span>
-          <button class="copy-btn" id="copyBtn">Copy</button>
-          <a class="open-btn" id="openBtn" target="_blank">Open ↗</a>
+
+        <!-- Subtitles -->
+        <div class="section">
+          <h2>
+            Subtitles
+            <span style="font-weight: 400; color: #555">(optional)</span>
+          </h2>
+          <div class="row-list" id="subList"></div>
+          <button class="btn-add" id="addSub">+ Add subtitle</button>
+        </div>
+
+        <div>
+          <button id="generateBtn">Generate URL</button>
+          <p class="err" id="errMsg">Add at least one video source.</p>
+        </div>
+
+        <!-- Result -->
+        <div id="result">
+          <div class="result-tabs">
+            <button class="tab-btn active" data-tab="encoded">Encoded</button>
+            <button class="tab-btn" data-tab="iframe">iFrame</button>
+            <button class="tab-btn" data-tab="raw">Raw</button>
+          </div>
+          <div class="url-box">
+            <span id="urlOutput"></span>
+            <button class="copy-btn" id="copyBtn">Copy</button>
+            <a class="open-btn" id="openBtn" target="_blank">Open ↗</a>
+          </div>
         </div>
       </div>
-    </div>
-    <br />
+      <br />
+    </main>
     <footer>
       <p>wdPlayer &copy; 2026 &mdash; Lightweight HTML5 Video Player</p>
     </footer>
