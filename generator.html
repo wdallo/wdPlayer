@@ -14,8 +14,9 @@
   <body>
     <header>
       <h1>wd<span>Player</span></h1>
-      <nav>
+      <nav aria-label="Main navigation">
         <a href="index.html">Index</a>
+        <a href="doc.html">Docs</a>
         <a
           href="http://localhost:5500/embed.html?v=eyJ2IjpbeyJsIjoiMTA4MHAiLCJzIjoiaHR0cHM6Ly90ZXN0LXZpZGVvcy5jby51ay92aWRzL2plbGx5ZmlzaC9tcDQvaDI2NC8xMDgwL0plbGx5ZmlzaF8xMDgwXzEwc18zME1CLm1wNCIsInQiOiJ2aWRlby9tcDQifSx7ImwiOiI3MjBwIiwicyI6Imh0dHBzOi8vdGVzdC12aWRlb3MuY28udWsvdmlkcy9qZWxseWZpc2gvbXA0L2gyNjQvNzIwL0plbGx5ZmlzaF83MjBfMTBzXzIwTUIubXA0IiwidCI6InZpZGVvL21wNCJ9LHsibCI6IjM2MHAiLCJzIjoiaHR0cHM6Ly90ZXN0LXZpZGVvcy5jby51ay92aWRzL2plbGx5ZmlzaC9tcDQvaDI2NC8zNjAvSmVsbHlmaXNoXzM2MF8xMHNfMTBNQi5tcDQiLCJ0IjoidmlkZW8vbXA0In1dLCJ1IjpbeyJsIjoiRW5nbGlzaCIsInMiOiJodHRwOi8vbG9jYWxob3N0OjU1MDAvc3VidGl0bGVzL3N1YnRpdGxlcy5lbi52dHQiLCJ0IjoidnR0Iiwic2wiOiJlbiJ9LHsibCI6IkxpdGh1YW5pYW4iLCJzIjoiaHR0cDovL2xvY2FsaG9zdDo1NTAwL3N1YnRpdGxlcy9zdWJ0aXRsZXMubHQudnR0IiwidCI6InZ0dCIsInNsIjoibHQifSx7ImwiOiJFbmdsaXNoIiwicyI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTUwMC9zdWJ0aXRsZXMvc3VidGl0bGVzLmVuLmFzcyIsInQiOiJhc3MiLCJzbCI6ImVuIn1dfQ"
           >Embed</a
@@ -41,7 +42,7 @@
         <div class="section">
           <h2>
             Subtitles
-            <span style="font-weight: 400; color: #555">(optional)</span>
+            <span style="font-weight: 400; color: #888">(optional)</span>
           </h2>
           <div class="row-list" id="subList"></div>
           <button class="btn-add" id="addSub">+ Add subtitle</button>
@@ -49,20 +50,50 @@
 
         <div>
           <button id="generateBtn">Generate URL</button>
-          <p class="err" id="errMsg">Add at least one video source.</p>
+          <p class="err" id="errMsg" role="alert" aria-live="assertive">
+            Add at least one video source.
+          </p>
         </div>
 
         <!-- Result -->
         <div id="result">
-          <div class="result-tabs">
-            <button class="tab-btn active" data-tab="encoded">Encoded</button>
-            <button class="tab-btn" data-tab="iframe">iFrame</button>
-            <button class="tab-btn" data-tab="raw">Raw</button>
+          <div class="result-tabs" role="tablist">
+            <button
+              class="tab-btn active"
+              role="tab"
+              aria-selected="true"
+              data-tab="encoded"
+            >
+              Encoded
+            </button>
+            <button
+              class="tab-btn"
+              role="tab"
+              aria-selected="false"
+              data-tab="iframe"
+            >
+              iFrame
+            </button>
+            <button
+              class="tab-btn"
+              role="tab"
+              aria-selected="false"
+              data-tab="raw"
+            >
+              Raw
+            </button>
           </div>
-          <div class="url-box">
+          <div class="url-box" role="tabpanel">
             <span id="urlOutput"></span>
             <button class="copy-btn" id="copyBtn">Copy</button>
-            <a class="open-btn" id="openBtn" target="_blank">Open ↗</a>
+            <a
+              class="open-btn"
+              id="openBtn"
+              target="_blank"
+              rel="noopener"
+              aria-label="Open generated URL in new tab"
+              >Open ↗</a
+            >
           </div>
         </div>
       </div>
@@ -102,17 +133,17 @@
         const entry = document.createElement("div");
         entry.className = "entry source-entry";
         entry.innerHTML = `
-          <div class="field"><div class="col-label">Label</div>
-            <input type="text" placeholder="1080p" value="${esc(label)}" data-key="label" /></div>
-          <div class="field"><div class="col-label">URL</div>
-            <input type="text" placeholder="https://…/video.mp4" value="${esc(src)}" data-key="src" /></div>
-          <div class="field"><div class="col-label">Type</div>
-            <select data-key="type">
+          <div class="field"><div class="col-label" aria-hidden="true">Label</div>
+            <input type="text" placeholder="1080p" value="${esc(label)}" data-key="label" aria-label="Source label" /></div>
+          <div class="field"><div class="col-label" aria-hidden="true">URL</div>
+            <input type="text" placeholder="https://…/video.mp4" value="${esc(src)}" data-key="src" aria-label="Source URL" /></div>
+          <div class="field"><div class="col-label" aria-hidden="true">Type</div>
+            <select data-key="type" aria-label="Source type">
               <option value="video/mp4" ${type === "video/mp4" ? "selected" : ""}>video/mp4</option>
               <option value="video/webm" ${type === "video/webm" ? "selected" : ""}>video/webm</option>
               <option value="video/ogg" ${type === "video/ogg" ? "selected" : ""}>video/ogg</option>
             </select></div>
-          <button class="btn-remove" title="Remove">✕</button>`;
+          <button class="btn-remove" aria-label="Remove source">✕</button>`;
         entry
           .querySelector(".btn-remove")
           .addEventListener("click", () => entry.remove());
@@ -124,18 +155,18 @@
         const entry = document.createElement("div");
         entry.className = "entry sub-entry";
         entry.innerHTML = `
-          <div class="field"><div class="col-label">Label</div>
-            <input type="text" placeholder="English" value="${esc(label)}" data-key="label" /></div>
-          <div class="field"><div class="col-label">URL</div>
-            <input type="text" placeholder="subtitles/en.vtt" value="${esc(src)}" data-key="src" /></div>
-          <div class="field"><div class="col-label">Type</div>
-            <select data-key="type">
+          <div class="field"><div class="col-label" aria-hidden="true">Label</div>
+            <input type="text" placeholder="English" value="${esc(label)}" data-key="label" aria-label="Subtitle label" /></div>
+          <div class="field"><div class="col-label" aria-hidden="true">URL</div>
+            <input type="text" placeholder="subtitles/en.vtt" value="${esc(src)}" data-key="src" aria-label="Subtitle URL" /></div>
+          <div class="field"><div class="col-label" aria-hidden="true">Type</div>
+            <select data-key="type" aria-label="Subtitle type">
               <option value="vtt" ${type === "vtt" ? "selected" : ""}>VTT</option>
               <option value="ass" ${type === "ass" ? "selected" : ""}>ASS</option>
             </select></div>
-          <div class="field"><div class="col-label">Lang</div>
-            <input type="text" placeholder="en" value="${esc(srclang)}" data-key="srclang" maxlength="10" /></div>
-          <button class="btn-remove" title="Remove">✕</button>`;
+          <div class="field"><div class="col-label" aria-hidden="true">Lang</div>
+            <input type="text" placeholder="en" value="${esc(srclang)}" data-key="srclang" maxlength="10" aria-label="Subtitle language code" /></div>
+          <button class="btn-remove" aria-label="Remove subtitle">✕</button>`;
         entry
           .querySelector(".btn-remove")
           .addEventListener("click", () => entry.remove());
@@ -171,10 +202,12 @@
 
       document.querySelectorAll(".tab-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
-          document
-            .querySelectorAll(".tab-btn")
-            .forEach((b) => b.classList.remove("active"));
+          document.querySelectorAll(".tab-btn").forEach((b) => {
+            b.classList.remove("active");
+            b.setAttribute("aria-selected", "false");
+          });
           btn.classList.add("active");
+          btn.setAttribute("aria-selected", "true");
           currentTab = btn.dataset.tab;
           if (lastCfg) renderUrl(lastCfg);
         });

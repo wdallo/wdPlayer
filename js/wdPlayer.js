@@ -289,7 +289,7 @@
     destroyOctopus();
     disableAllNativeTracks();
     const resolvedUrl = new URL(src, document.baseURI).href;
-    fetch(resolvedUrl, { method: "HEAD" })
+    fetch(resolvedUrl, { method: "HEAD", credentials: "omit" })
       .then((res) => {
         if (!res.ok) {
           console.warn(
@@ -329,7 +329,7 @@
       return;
     }
     const resolvedUrl = new URL(src, document.baseURI).href;
-    fetch(resolvedUrl, { method: "HEAD" })
+    fetch(resolvedUrl, { method: "HEAD", credentials: "omit" })
       .then((res) => {
         if (!res.ok) {
           console.warn(
@@ -536,7 +536,10 @@
       const probeUrl = _probeU.href;
       const PROBE_BYTES = 100_000;
       const t0 = performance.now();
-      const res = await fetch(probeUrl, { cache: "no-store" });
+      const res = await fetch(probeUrl, {
+        cache: "no-store",
+        credentials: "omit",
+      });
       const reader = res.body.getReader();
       let received = 0;
       while (received < PROBE_BYTES) {

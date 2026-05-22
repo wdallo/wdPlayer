@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en" class="page-doc">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>wdPlayer — Documentation</title>
+    <meta
+      name="description"
+      content="wdPlayer documentation — full reference for URL params, embedding, subtitles, keyboard shortcuts and more."
+    />
+    <link rel="stylesheet" href="css/pages.css" />
+    <link rel="icon" href="/fav.png" type="image/png" />
+  </head>
+  <body>
+    <header>
+      <h1>wd<span>Player</span></h1>
+      <nav aria-label="Main navigation">
+        <a href="index.html">Index</a>
+        <a href="generator.html">URL Generator</a>
+        <a
+          href="http://localhost:5500/embed.html?v=eyJ2IjpbeyJsIjoiMTA4MHAiLCJzIjoiaHR0cHM6Ly90ZXN0LXZpZGVvcy5jby51ay92aWRzL2plbGx5ZmlzaC9tcDQvaDI2NC8xMDgwL0plbGx5ZmlzaF8xMDgwXzEwc18zME1CLm1wNCIsInQiOiJ2aWRlby9tcDQifSx7ImwiOiI3MjBwIiwicyI6Imh0dHBzOi8vdGVzdC12aWRlb3MuY28udWsvdmlkcy9qZWxseWZpc2gvbXA0L2gyNjQvNzIwL0plbGx5ZmlzaF83MjBfMTBzXzIwTUIubXA0IiwidCI6InZpZGVvL21wNCJ9LHsibCI6IjM2MHAiLCJzIjoiaHR0cHM6Ly90ZXN0LXZpZGVvcy5jby51ay92aWRzL2plbGx5ZmlzaC9tcDQvaDI2NC8zNjAvSmVsbHlmaXNoXzM2MF8xMHNfMTBNQi5tcDQiLCJ0IjoidmlkZW8vbXA0In1dLCJ1IjpbeyJsIjoiRW5nbGlzaCIsInMiOiJodHRwOi8vbG9jYWxob3N0OjU1MDAvc3VidGl0bGVzL3N1YnRpdGxlcy5lbi52dHQiLCJ0IjoidnR0Iiwic2wiOiJlbiJ9LHsibCI6IkxpdGh1YW5pYW4iLCJzIjoiaHR0cDovL2xvY2FsaG9zdDo1NTAwL3N1YnRpdGxlcy9zdWJ0aXRsZXMubHQudnR0IiwidCI6InZ0dCIsInNsIjoibHQifSx7ImwiOiJFbmdsaXNoIiwicyI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTUwMC9zdWJ0aXRsZXMvc3VidGl0bGVzLmVuLmFzcyIsInQiOiJhc3MiLCJzbCI6ImVuIn1dfQ"
+          >Embed</a
+        >
+      </nav>
+    </header>
+
+    <main>
+      <!-- Hero -->
+      <div class="doc-hero">
+        <h2>Documentation</h2>
+        <p>
+          Complete reference for wdPlayer — URL parameters, embedding,
+          subtitles, keyboard shortcuts, and more.
+        </p>
+      </div>
+
+      <!-- TOC -->
+      <nav class="toc" aria-label="Table of contents">
+        <h3>Contents</h3>
+        <ol>
+          <li><a href="#overview"> Overview</a></li>
+          <li><a href="#quickstart"> Quick Start</a></li>
+          <li><a href="#url-params"> URL Parameters</a></li>
+          <li><a href="#embedding"> Embedding (iframe)</a></li>
+          <li><a href="#sources"> Video Sources</a></li>
+          <li><a href="#subtitles"> Subtitles (VTT &amp; ASS)</a></li>
+          <li><a href="#quality"> Quality Control</a></li>
+          <li><a href="#keyboard"> Keyboard Shortcuts</a></li>
+          <li><a href="#controls"> Controls Reference</a></li>
+          <li><a href="#generator"> URL Generator</a></li>
+          <li><a href="#files"> File Structure</a></li>
+          <li><a href="#config"> Configuration (JS)</a></li>
+        </ol>
+      </nav>
+
+      <!-- 1. Overview -->
+      <section class="doc-section" id="overview">
+        <h2>1. Overview</h2>
+        <p>
+          <strong>wdPlayer</strong> is a lightweight, dependency-free HTML5
+          video player. The entire UI is built in JavaScript — just include one
+          JS file and one CSS file on any page.
+        </p>
+        <div class="badge-grid">
+          <div class="badge-card">
+            <h3>Auto Quality</h3>
+            <p>
+              Switches source based on measured bandwidth with hysteresis and
+              upgrade cooldown.
+            </p>
+          </div>
+          <div class="badge-card">
+            <h3>ASS &amp; VTT Subtitles</h3>
+            <p>
+              Native VTT subtitles and advanced ASS/SSA rendering via
+              SubtitlesOctopus.
+            </p>
+          </div>
+          <div class="badge-card">
+            <h3>URL Encoding</h3>
+            <p>
+              Entire config is passed as a URL parameter — no backend required.
+            </p>
+          </div>
+          <div class="badge-card">
+            <h3>Thumbnail Preview</h3>
+            <p>
+              Hovering over the progress bar shows a live frame thumbnail and
+              timestamp.
+            </p>
+          </div>
+          <div class="badge-card">
+            <h3>Playback Speed</h3>
+            <p>
+              0.5× to 2× — via the speed menu or keyboard shortcuts
+              <kbd>,</kbd> / <kbd>.</kbd>.
+            </p>
+          </div>
+          <div class="badge-card">
+            <h3>Resume Playback</h3>
+            <p>
+              Position is saved to localStorage and a resume prompt is shown on
+              next visit.
+            </p>
+          </div>
+          <div class="badge-card">
+            <h3>Fullscreen</h3>
+            <p>
+              Controls auto-hide after 2 seconds of inactivity when in
+              fullscreen mode.
+            </p>
+          </div>
+          <div class="badge-card">
+            <h3>iframe Ready</h3>
+            <p>
+              embed.html is purpose-built for embedding via
+              <code>&lt;iframe&gt;</code>.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Quick start -->
+      <section class="doc-section" id="quickstart">
+        <h2>2. Quick Start</h2>
+        <p>
+          The simplest way — open <code>embed.html</code> with the
+          <code>?v=</code> parameter:
+        </p>
+        <pre><code>embed.html?v=https://example.com/video.mp4</code></pre>
+        <p>
+          The player detects the MIME type automatically from the file extension
+          (<code>.mp4</code>, <code>.webm</code>, <code>.ogv</code>).
+        </p>
+
+        <h3>With multiple sources and subtitles</h3>
+        <p>
+          Use the <a href="generator.html">URL Generator</a> or encode manually:
+        </p>
+        <pre><code>embed.html?sources=[
+  {"label":"1080p","src":"https://…/1080.mp4","type":"video/mp4"},
+  {"label":"720p", "src":"https://…/720.mp4", "type":"video/mp4"}
+]&subtitles=[
+  {"label":"English","src":"https://…/en.vtt","type":"vtt","srclang":"en"}
+]</code></pre>
+        <div class="note">
+          <strong>Note:</strong> when the URL contains <code>?sources=</code>,
+          the player automatically encodes it to <code>?v=BASE64</code> and
+          redirects — you get a shorter, shareable link that works anywhere.
+        </div>
+      </section>
+
+      <!-- 3. URL params -->
+      <section class="doc-section" id="url-params">
+        <h2>3. URL Parameters</h2>
+        <table class="param-table">
+          <thead>
+            <tr>
+              <th>Parameter</th>
+              <th>Value</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>?v=URL</td>
+              <td><code>https://…/video.mp4</code></td>
+              <td>
+                Direct single-source shortcut. MIME type is inferred from the
+                file extension.
+              </td>
+            </tr>
+            <tr>
+              <td>?v=BASE64</td>
+              <td>URL-safe Base64 string</td>
+              <td>
+                Encoded config (sources + subtitles). Generated automatically or
+                via the URL Generator.
+              </td>
+            </tr>
+            <tr>
+              <td>?sources=JSON</td>
+              <td>JSON array</td>
+              <td>
+                Raw sources as JSON. The player encodes and redirects to
+                <code>?v=BASE64</code> automatically.
+              </td>
+            </tr>
+            <tr>
+              <td>?subtitles=JSON</td>
+              <td>JSON array</td>
+              <td>
+                Raw subtitles as JSON. Used together with
+                <code>?sources=</code>.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Source object</h3>
+        <pre><code>{
+  "label": "1080p",           // displayed in the quality menu
+  "src":   "https://…/v.mp4", // video URL
+  "type":  "video/mp4"        // MIME type: video/mp4 | video/webm | video/ogg
+}</code></pre>
+
+        <h3>Subtitle object</h3>
+        <pre><code>{
+  "label":   "English",          // displayed in the subtitle menu
+  "src":     "https://…/en.vtt", // subtitle file URL
+  "type":    "vtt",              // "vtt" or "ass"
+  "srclang": "en"                // optional: BCP 47 language code
+}</code></pre>
+      </section>
+
+      <!-- 4. Embedding -->
+      <section class="doc-section" id="embedding">
+        <h2>4. Embedding (iframe)</h2>
+        <p>
+          The player is designed to be embedded via
+          <code>&lt;iframe&gt;</code> using <code>embed.html</code>:
+        </p>
+        <pre><code>&lt;iframe
+  src="embed.html?v=https://example.com/video.mp4"
+  width="800"
+  height="450"
+  allowfullscreen
+  style="border:none"
+&gt;&lt;/iframe&gt;</code></pre>
+        <p>Responsive 16:9 container with CSS:</p>
+        <pre><code>&lt;div style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden;"&gt;
+  &lt;iframe
+    src="embed.html?v=BASE64"
+    style="position:absolute; top:0; left:0; width:100%; height:100%; border:none;"
+    allowfullscreen
+  &gt;&lt;/iframe&gt;
+&lt;/div&gt;</code></pre>
+        <div class="note">
+          <strong>Note:</strong> subtitle files must be served from the same
+          origin or with appropriate CORS headers on the server.
+        </div>
+      </section>
+
+      <!-- 5. Sources -->
+      <section class="doc-section" id="sources">
+        <h2>5. Video Sources</h2>
+        <p>
+          You can provide multiple sources for different resolutions. The player
+          shows them in the quality menu and automatically picks the best one
+          based on measured bandwidth (Auto mode).
+        </p>
+        <h3>Supported formats</h3>
+        <ul>
+          <li>
+            <strong>video/mp4</strong> — H.264 or H.265 (HEVC,
+            browser-dependent)
+          </li>
+          <li><strong>video/webm</strong> — VP8, VP9, AV1</li>
+          <li><strong>video/ogg</strong> — Theora (<code>.ogv</code>)</li>
+        </ul>
+        <h3>Labels</h3>
+        <p>
+          The <code>label</code> field is shown in the quality button and menu.
+          Recommended values: <code>"1080p"</code>, <code>"720p"</code>,
+          <code>"360p"</code>. Sources must be listed from highest quality to
+          lowest.
+        </p>
+        <pre><code>[
+  {"label":"1080p","src":"https://…/1080.mp4","type":"video/mp4"},
+  {"label":"720p", "src":"https://…/720.mp4", "type":"video/mp4"},
+  {"label":"360p", "src":"https://…/360.mp4", "type":"video/mp4"}
+]</code></pre>
+      </section>
+
+      <!-- 6. Subtitles -->
+      <section class="doc-section" id="subtitles">
+        <h2>6. Subtitles (VTT &amp; ASS)</h2>
+
+        <h3>VTT (WebVTT)</h3>
+        <p>
+          Standard browser subtitle format. The player adds a native
+          <code>&lt;track&gt;</code> element and renders subtitles using the
+          browser's built-in engine.
+        </p>
+        <pre><code>{"label":"English","src":"subtitles/en.vtt","type":"vtt","srclang":"en"}</code></pre>
+
+        <h3>ASS / SSA</h3>
+        <p>
+          Advanced format supporting custom styles, animations, and positioned
+          text. Rendered via SubtitlesOctopus, which is lazy-loaded the first
+          time an ASS track is selected.
+        </p>
+        <pre><code>{"label":"English","src":"subtitles/en.ass","type":"ass","srclang":"en"}</code></pre>
+        <div class="note">
+          <strong>Note:</strong> ASS rendering requires the following files to
+          be present: <code>js/octopus/subtitles-octopus.js</code>,
+          <code>subtitles-octopus-worker.js</code>, and
+          <code>subtitles-octopus-worker-legacy.js</code>.
+        </div>
+
+        <h3>Multiple subtitle tracks</h3>
+        <p>
+          You can add as many subtitle tracks as needed — in different languages
+          and formats:
+        </p>
+        <pre><code>[
+  {"label":"English (VTT)", "src":"sub/en.vtt","type":"vtt","srclang":"en"},
+  {"label":"Lithuanian",    "src":"sub/lt.vtt","type":"vtt","srclang":"lt"},
+  {"label":"English (ASS)", "src":"sub/en.ass","type":"ass","srclang":"en"}
+]</code></pre>
+      </section>
+
+      <!-- 7. Quality -->
+      <section class="doc-section" id="quality">
+        <h2>7. Quality Control</h2>
+
+        <h3>Auto mode</h3>
+        <p>
+          When multiple sources are provided, the player automatically selects
+          the best one based on measured bandwidth (Mbps). It uses:
+        </p>
+        <ul>
+          <li>
+            <code>navigator.connection.downlink</code> — when supported by the
+            browser
+          </li>
+          <li>Timed fetch probe (~100 KB) — fallback method</li>
+        </ul>
+        <p>
+          Default thresholds (best → worst): <code>[5 Mbps, 2 Mbps, …]</code> —
+          additional sources get interpolated thresholds.
+        </p>
+
+        <h3>Hysteresis &amp; cooldown</h3>
+        <ul>
+          <li>
+            Upgrading requires <strong>20% more</strong> bandwidth than the
+            threshold
+          </li>
+          <li>
+            Downgrading happens <strong>immediately</strong> when bandwidth
+            drops 15% below the threshold
+          </li>
+          <li>
+            Upgrades cannot happen more than once every
+            <strong>10 seconds</strong>
+          </li>
+        </ul>
+
+        <h3>Stall recovery</h3>
+        <p>
+          If the video buffers for more than 3 seconds while in Auto mode, the
+          player automatically steps down one quality level.
+        </p>
+
+        <h3>Manual selection</h3>
+        <p>
+          Click the quality button in the control bar or press <kbd>Q</kbd> to
+          cycle through available resolutions manually.
+        </p>
+      </section>
+
+      <!-- 8. Keyboard -->
+      <section class="doc-section" id="keyboard">
+        <h2>8. Keyboard Shortcuts</h2>
+        <div class="kbd-grid">
+          <div class="kbd-row">
+            <span>Play / Pause</span>
+            <div class="keys"><kbd>Space</kbd></div>
+          </div>
+          <div class="kbd-row">
+            <span>Toggle fullscreen</span>
+            <div class="keys"><kbd>F</kbd></div>
+          </div>
+          <div class="kbd-row">
+            <span>Mute / Unmute</span>
+            <div class="keys"><kbd>M</kbd></div>
+          </div>
+          <div class="kbd-row">
+            <span>Seek forward 5s</span>
+            <div class="keys"><kbd>→</kbd></div>
+          </div>
+          <div class="kbd-row">
+            <span>Seek backward 5s</span>
+            <div class="keys"><kbd>←</kbd></div>
+          </div>
+          <div class="kbd-row">
+            <span>Volume +10%</span>
+            <div class="keys"><kbd>↑</kbd></div>
+          </div>
+          <div class="kbd-row">
+            <span>Volume −10%</span>
+            <div class="keys"><kbd>↓</kbd></div>
+          </div>
+          <div class="kbd-row">
+            <span>Increase speed</span>
+            <div class="keys"><kbd>.</kbd></div>
+          </div>
+          <div class="kbd-row">
+            <span>Decrease speed</span>
+            <div class="keys"><kbd>,</kbd></div>
+          </div>
+          <div class="kbd-row">
+            <span>Cycle subtitles</span>
+            <div class="keys"><kbd>C</kbd></div>
+          </div>
+          <div class="kbd-row">
+            <span>Cycle quality</span>
+            <div class="keys"><kbd>Q</kbd></div>
+          </div>
+          <div class="kbd-row">
+            <span>Jump to 0%–90%</span>
+            <div class="keys"><kbd>1</kbd>–<kbd>9</kbd></div>
+          </div>
+          <div class="kbd-row">
+            <span>Close menus</span>
+            <div class="keys"><kbd>Esc</kbd></div>
+          </div>
+        </div>
+        <div class="note">
+          <strong>Note:</strong> shortcuts are disabled when focus is inside a
+          text input (<code>&lt;input&gt;</code>).
+        </div>
+      </section>
+
+      <!-- 9. Controls -->
+      <section class="doc-section" id="controls">
+        <h2>9. Controls Reference</h2>
+        <ul>
+          <li>
+            <strong>▶ / ⏸ Play/Pause</strong> — play or pause the video. The
+            large central overlay button also works.
+          </li>
+          <li>
+            <strong>Timer</strong> — shows current position and total duration
+            (<code>0:00 / 5:24</code>). Hours are included for videos longer
+            than 1 hour.
+          </li>
+          <li>
+            <strong>Progress bar</strong> — click or drag to seek. Hovering
+            shows a thumbnail preview and timestamp above the bar.
+          </li>
+          <li>
+            <strong>🔊 Volume</strong> — mute toggle button + slider. Last
+            setting is persisted in localStorage.
+          </li>
+          <li>
+            <strong>Auto / 720p (Quality)</strong> — only shown with multiple
+            sources. Opens a menu with Auto and manual options.
+          </li>
+          <li>
+            <strong>CC (Subtitles)</strong> — only shown when at least one
+            subtitle track has loaded. Menu lists all available tracks.
+          </li>
+          <li>
+            <strong>1× (Speed)</strong> — playback speed menu: 0.5×, 0.75×, 1×,
+            1.25×, 1.5×, 2×.
+          </li>
+          <li>
+            <strong>⛶ Fullscreen</strong> — enter or exit fullscreen mode.
+          </li>
+        </ul>
+        <h3>Right-click context menu</h3>
+        <p>Right-clicking anywhere on the player shows an info card with:</p>
+        <ul>
+          <li>Player version</li>
+          <li>Active quality</li>
+          <li>Active subtitles</li>
+          <li>Video resolution (px)</li>
+          <li>Playback speed</li>
+          <li>Volume level</li>
+        </ul>
+      </section>
+
+      <!-- 10. Generator -->
+      <section class="doc-section" id="generator">
+        <h2>10. URL Generator</h2>
+        <p>
+          <a href="generator.html">generator.html</a> is a visual tool for
+          building encoded player URLs without writing JSON by hand.
+        </p>
+        <ol>
+          <li>
+            Click <strong>+ Add source</strong> and fill in the label, URL, and
+            type.
+          </li>
+          <li>
+            Optionally: click <strong>+ Add subtitle</strong> and fill in the
+            subtitle details.
+          </li>
+          <li>Click <strong>Generate URL</strong>.</li>
+          <li>
+            Copy the <em>Encoded</em> URL or the ready-made
+            <em>iFrame</em> embed code.
+          </li>
+        </ol>
+        <p>Result tabs:</p>
+        <ul>
+          <li>
+            <strong>Encoded</strong> — full URL with <code>?v=BASE64</code>
+          </li>
+          <li>
+            <strong>iFrame</strong> — ready-to-paste
+            <code>&lt;iframe&gt;</code> HTML snippet
+          </li>
+          <li>
+            <strong>Raw</strong> — unencoded JSON config (useful for debugging)
+          </li>
+        </ul>
+      </section>
+
+      <!-- 11. Files -->
+      <section class="doc-section" id="files">
+        <h2>11. File Structure</h2>
+        <pre><code>HTML5-VIDEO-PLAYER/
+├── embed.html              ← player page (use this for embedding)
+├── index.html              ← demo page with iframe
+├── generator.html          ← URL generator tool
+├── doc.html                ← this documentation
+├── css/
+│   ├── wdPlayer.css        ← player styles
+│   └── pages.css           ← styles for index / generator / doc pages
+├── js/
+│   ├── wdPlayer.js         ← main player script
+│   └── octopus/
+│       ├── subtitles-octopus.js              ← ASS library (lazy-loaded)
+│       ├── subtitles-octopus-worker.js       ← ASS web worker
+│       └── subtitles-octopus-worker-legacy.js
+└── subtitles/
+    ├── subtitles.en.vtt
+    ├── subtitles.en.ass
+    └── subtitles.lt.vtt</code></pre>
+      </section>
+
+      <!-- 12. Config -->
+      <section class="doc-section" id="config">
+        <h2>12. Configuration (JS)</h2>
+        <p>
+          A small config block at the top of <code>wdPlayer.js</code> controls
+          behaviour:
+        </p>
+        <pre><code>// ─── Config ───────────────────────────────────────────────────────────────
+const TOOLTIPS_ENABLED = true; // set false to disable button tooltips
+// ──────────────────────────────────────────────────────────────────────────</code></pre>
+        <div class="param-list" style="margin-top: 0.5rem">
+          <div class="param-header">
+            <span>Variable</span>
+            <span>Default</span>
+            <span>Description</span>
+          </div>
+          <div class="param-row">
+            <code class="param-name">TOOLTIPS_ENABLED</code>
+            <span class="param-val"><code>true</code></span>
+            <span class="param-desc"
+              >Show tooltips with keyboard hint above control buttons.</span
+            >
+          </div>
+          <div class="param-row">
+            <code class="param-name">SPEED_RATES</code>
+            <span class="param-val"
+              ><code>[0.5, 0.75, 1, 1.25, 1.5, 2]</code></span
+            >
+            <span class="param-desc"
+              >Array of speed options shown in the speed menu.</span
+            >
+          </div>
+          <div class="param-row">
+            <code class="param-name">bandwidthThresholds</code>
+            <span class="param-val"><code>[5, 2, …]</code></span>
+            <span class="param-desc"
+              >Auto quality Mbps thresholds (computed automatically based on
+              source count).</span
+            >
+          </div>
+          <div class="param-row">
+            <code class="param-name">_UPGRADE_COOLDOWN_MS</code>
+            <span class="param-val"><code>10 000</code></span>
+            <span class="param-desc"
+              >Minimum milliseconds between quality upgrades.</span
+            >
+          </div>
+          <div class="param-row">
+            <code class="param-name">_HYST_UP</code>
+            <span class="param-val"><code>1.2</code></span>
+            <span class="param-desc"
+              >Upgrading requires 20% more bandwidth than the threshold.</span
+            >
+          </div>
+          <div class="param-row">
+            <code class="param-name">_HYST_DOWN</code>
+            <span class="param-val"><code>0.85</code></span>
+            <span class="param-desc"
+              >Downgrade when bandwidth falls 15% below the threshold.</span
+            >
+          </div>
+        </div>
+
+        <h3>localStorage keys</h3>
+        <div class="param-list param-list--2col" style="margin-top: 0.5rem">
+          <div class="param-header">
+            <span>Key</span>
+            <span>Description</span>
+          </div>
+          <div class="param-row">
+            <code class="param-name">wdPlayer:volume</code>
+            <span class="param-desc">Last set volume level (0–1).</span>
+          </div>
+          <div class="param-row">
+            <code class="param-name">wdPlayer:muted</code>
+            <span class="param-desc"
+              ><code>"1"</code> if muted, <code>"0"</code> if not.</span
+            >
+          </div>
+          <div class="param-row">
+            <code class="param-name">wdPlayer:resume:&lt;key&gt;</code>
+            <span class="param-desc"
+              >Last playback position in seconds. Key is the
+              <code>?v=</code> value or the source URL.</span
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>wdPlayer &copy; 2026 &mdash; Lightweight HTML5 Video Player</p>
+    </footer>
+  </body>
+</html>
