@@ -2204,7 +2204,7 @@
     }
 
     const rows = [
-      ["wdPlayer", "v1.0"],
+      ["wdPlayer", "v1.2"],
       ...(sources.length > 1
         ? [
             [
@@ -2231,8 +2231,11 @@
         "Resolution",
         video.videoWidth ? `${video.videoWidth}×${video.videoHeight}` : "—",
       ],
-      ["Speed", `${video.playbackRate}×`],
-      ["Volume", `${Math.round(video.volume * 100)}%`],
+      ["Speed", video.playbackRate === 1 ? "Normal" : `${video.playbackRate}×`],
+      [
+        "Volume",
+        `${video.muted || video.volume === 0 ? "Muted" : `${Math.round(video.volume * 100)}%`}`,
+      ],
     ];
 
     contextMenu.replaceChildren();
