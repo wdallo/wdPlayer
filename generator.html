@@ -142,6 +142,8 @@
               <option value="video/mp4" ${type === "video/mp4" ? "selected" : ""}>video/mp4</option>
               <option value="video/webm" ${type === "video/webm" ? "selected" : ""}>video/webm</option>
               <option value="video/ogg" ${type === "video/ogg" ? "selected" : ""}>video/ogg</option>
+              <option value="application/x-mpegURL" ${type === "application/x-mpegURL" ? "selected" : ""}>HLS (.m3u8)</option>
+              <option value="application/dash+xml" ${type === "application/dash+xml" ? "selected" : ""}> DASH (.mpd)</option>
             </select></div>
           <button class="btn-remove" aria-label="Remove source">✕</button>`;
         entry
@@ -184,7 +186,31 @@
 
       // Add one blank source row by default
       addSource();
+      // ── Refresh Info ─────────────────────────────────────────────────────────
+      const videoTypeSelect = document.querySelector('select[data-key="type"]');
+      const labelInput = document.querySelector('input[data-key="label"]');
+      const addSourceBtn = document.getElementById("addSource");
 
+      videoTypeSelect.addEventListener("change", (event) => {
+        const mimeType = event.target.value;
+
+        const labels = {
+          "application/dash+xml": "DASH",
+          "application/x-mpegURL": "HLS",
+        };
+
+        const isStream = mimeType in labels;
+
+        // 1. element status (disabled)
+        labelInput.disabled = isStream;
+        addSourceBtn.disabled = isStream;
+
+        // 2. update text and values
+        addSourceBtn.textContent = isStream
+          ? "Disabled For This"
+          : "+ Add source";
+        labelInput.value = isStream ? labels[mimeType] : "";
+      });
       // ── Read rows ────────────────────────────────────────────────────────────
       const readEntries = (container) =>
         [...container.querySelectorAll(".entry")].map((entry) => {
