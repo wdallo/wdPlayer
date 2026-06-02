@@ -129,6 +129,19 @@
     );
   };
 
+  // Infer media MIME type from URL when source.type is omitted
+  const inferSourceTypeFromUrl = (url) => {
+    const clean = String(url || "")
+      .split("?")[0]
+      .toLowerCase();
+    const ext = clean.split(".").pop();
+    if (ext === "m3u8") return "application/vnd.apple.mpegurl";
+    if (ext === "mpd") return "application/dash+xml";
+    if (ext === "webm") return "video/webm";
+    if (ext === "ogv" || ext === "ogg") return "video/ogg";
+    return "video/mp4";
+  };
+
   // Sources and subtitles come entirely from URL params — no storage needed.
   // ?v=https://…/video.mp4       → direct single-source shortcut (no encoding needed)
   // ?sources=JSON&subtitles=JSON  → encode to Base64, redirect to ?v=BASE64
@@ -143,13 +156,7 @@
       const raw = params.get("v");
       // Direct URL shortcut — ?v=https://… or ?v=http://…
       if (/^https?:\/\//i.test(raw)) {
-        const ext = raw.split("?")[0].split(".").pop().toLowerCase();
-        const type =
-          ext === "webm"
-            ? "video/webm"
-            : ext === "ogv" || ext === "ogg"
-              ? "video/ogg"
-              : "video/mp4";
+        const type = inferSourceTypeFromUrl(raw);
         sources = [{ label: "Video", src: raw, type }];
         return;
       }
@@ -181,6 +188,12 @@
     }
   })();
 
+  // Backfill missing source.type values to keep source handling predictable
+  sources = sources.map((s) => ({
+    ...s,
+    type: s.type || inferSourceTypeFromUrl(s.src),
+  }));
+
   // If sources is empty (no valid params), show error UI and stop execution
   if (!sources.length) {
     const noSrcErr = document.createElement("div");
@@ -209,19 +222,364 @@
     "wdPlayer:resume:" +
     (new URLSearchParams(location.search).get("v") ?? sources[0].src);
 
+  const HLS_MIME_TYPES = [
+    "application/vnd.apple.mpegurl",
+    "application/x-mpegURL",
+  ];
+  const DASH_MIME_TYPES = ["application/dash+xml"];
+  const HLS_JS_URL = "js/hls-min.js";
+  const DASH_JS_URL = "js/dash.all-min.js";
+  const hasMseSupport = () =>
+    !!(window.MediaSource || window.WebKitMediaSource);
+  const canPlayNativeHls = () =>
+    HLS_MIME_TYPES.some((mime) => video.canPlayType(mime) !== "");
+  const isHlsSource = (entry) => {
+    if (!entry) return false;
+    const type = (entry.type || "").toLowerCase();
+    if (HLS_MIME_TYPES.includes(type)) return true;
+    return /\.m3u8(\?|$)/i.test(entry.src || "");
+  };
+  const isDashSource = (entry) => {
+    if (!entry) return false;
+    const type = (entry.type || "").toLowerCase();
+    if (DASH_MIME_TYPES.includes(type)) return true;
+    return /\.mpd(\?|$)/i.test(entry.src || "");
+  };
+
+  // Shared dynamic script loader for optional playback engines
+  const scriptLoadState = {};
+  const loadExternalScript = (src, globalName, cb) => {
+    if (window[globalName]) {
+      cb(true);
+      return;
+    }
+    if (!scriptLoadState[src]) {
+      scriptLoadState[src] = { loading: false, loaded: false, callbacks: [] };
+    }
+    const state = scriptLoadState[src];
+    if (state.loaded) {
+      cb(true);
+      return;
+    }
+    state.callbacks.push(cb);
+    if (state.loading) return;
+    state.loading = true;
+
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = () => {
+      state.loading = false;
+      state.loaded = !!window[globalName];
+      const ok = state.loaded;
+      state.callbacks.splice(0).forEach((fn) => fn(ok));
+    };
+    s.onerror = () => {
+      state.loading = false;
+      state.loaded = false;
+      state.callbacks.splice(0).forEach((fn) => fn(false));
+    };
+    document.head.appendChild(s);
+  };
+
+  let hlsInstance = null;
+  let dashInstance = null;
+  let dashSubtitleTracks = [];
+  let activeDashTrackApiIndex = -1;
+  let hlsSubtitleTracks = [];
+  let activeHlsSubtitleIndex = -1;
+  let adaptiveAttachInProgress = false;
+
+  // Quality levels for adaptive streams
+  // Each entry: { label, qualityIndex, bitrate, width, height }
+  let dashQualityLevels = []; // filled after STREAM_INITIALIZED
+  let hlsQualityLevels = []; // filled after MANIFEST_PARSED
+  let dashQualityAuto = true; // whether dash.js ABR is controlling quality
+  let hlsQualityAuto = true; // whether hls.js ABR is controlling quality
+
+  const destroyAdaptivePlayers = () => {
+    if (hlsInstance) {
+      hlsInstance.destroy();
+      hlsInstance = null;
+    }
+    if (dashInstance) {
+      dashInstance.reset();
+      dashInstance = null;
+    }
+    dashSubtitleTracks = [];
+    activeDashTrackApiIndex = -1;
+    hlsSubtitleTracks = [];
+    activeHlsSubtitleIndex = -1;
+    dashQualityLevels = [];
+    hlsQualityLevels = [];
+    dashQualityAuto = true;
+    hlsQualityAuto = true;
+  };
+
+  const restorePlaybackState = (savedTime, wasPlaying) => {
+    if (savedTime > 0) {
+      const applyTime = () => {
+        try {
+          video.currentTime = savedTime;
+        } catch (_) {}
+      };
+      if (video.readyState >= 1) applyTime();
+      else video.addEventListener("loadedmetadata", applyTime, { once: true });
+    }
+    if (wasPlaying) {
+      const tryPlay = () => video.play().catch(() => {});
+      if (video.readyState >= 2) tryPlay();
+      else video.addEventListener("canplay", tryPlay, { once: true });
+    }
+  };
+
   const source = document.createElement("source");
-  source.src = sources[activeSourceIndex].src;
-  source.type = sources[activeSourceIndex].type;
   video.appendChild(source);
+
+  const setNativeSource = (entry, savedTime = 0, wasPlaying = false) => {
+    adaptiveAttachInProgress = false;
+    destroyAdaptivePlayers();
+    source.src = entry.src;
+    source.type = entry.type;
+    video.load();
+    restorePlaybackState(savedTime, wasPlaying);
+  };
+
+  const setHlsJsSource = (entry, savedTime = 0, wasPlaying = false) => {
+    adaptiveAttachInProgress = true;
+    loadExternalScript(HLS_JS_URL, "Hls", (ok) => {
+      if (!ok || !window.Hls || !window.Hls.isSupported()) {
+        adaptiveAttachInProgress = false;
+        console.error("wdPlayer: hls.js failed to load or is unsupported");
+        setNativeSource(entry, savedTime, wasPlaying);
+        return;
+      }
+
+      destroyAdaptivePlayers();
+      source.removeAttribute("src");
+      source.removeAttribute("type");
+
+      hlsInstance = new window.Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+      });
+      hlsInstance.on(window.Hls.Events.MANIFEST_PARSED, (event, data) => {
+        adaptiveAttachInProgress = false;
+        refreshHlsQuality(data && data.levels);
+        restorePlaybackState(savedTime, wasPlaying);
+      });
+      hlsInstance.on(
+        window.Hls.Events.SUBTITLE_TRACKS_UPDATED,
+        (event, data) => {
+          const tracks =
+            (data && data.subtitleTracks) || hlsInstance.subtitleTracks || [];
+          hlsSubtitleTracks = tracks.map((t, i) => ({
+            label:
+              t.name || (t.lang ? `Subtitle (${t.lang})` : `Subtitle ${i + 1}`),
+            language: t.lang || "",
+            hlsIndex: i,
+            type: "hls",
+          }));
+          // Default: no subtitle selected
+          hlsInstance.subtitleDisplay = false;
+          hlsInstance.subtitleTrack = -1;
+          activeHlsSubtitleIndex = -1;
+          updateSubtitleAvailability();
+          populateSubtitleMenu();
+        },
+      );
+      hlsInstance.on(window.Hls.Events.SUBTITLE_TRACK_SWITCH, (event, data) => {
+        // Ignore auto-switch events when subtitleDisplay is off (we explicitly disabled)
+        if (!hlsInstance.subtitleDisplay) return;
+        activeHlsSubtitleIndex =
+          data && typeof data.id === "number" ? data.id : -1;
+        updateCcButtonState();
+        populateSubtitleMenu();
+      });
+      hlsInstance.on(window.Hls.Events.LEVEL_SWITCHED, () => {
+        if (typeof updateAdaptiveQualityButton === "function") {
+          updateAdaptiveQualityButton();
+        }
+      });
+      hlsInstance.on(window.Hls.Events.ERROR, (_, data) => {
+        if (!data || !data.fatal) return;
+        if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
+          hlsInstance.startLoad();
+          return;
+        }
+        if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR) {
+          hlsInstance.recoverMediaError();
+          return;
+        }
+        adaptiveAttachInProgress = false;
+        hlsInstance.destroy();
+        hlsInstance = null;
+      });
+      hlsInstance.loadSource(new URL(entry.src, document.baseURI).href);
+      hlsInstance.attachMedia(video);
+    });
+  };
+
+  const setDashJsSource = (entry, savedTime = 0, wasPlaying = false) => {
+    adaptiveAttachInProgress = true;
+    loadExternalScript(DASH_JS_URL, "dashjs", (ok) => {
+      if (!ok || !window.dashjs || !hasMseSupport()) {
+        adaptiveAttachInProgress = false;
+        console.error("wdPlayer: dash.js failed to load or MSE is unsupported");
+        setNativeSource(entry, savedTime, wasPlaying);
+        return;
+      }
+
+      destroyAdaptivePlayers();
+      source.removeAttribute("src");
+      source.removeAttribute("type");
+
+      dashInstance = window.dashjs.MediaPlayer().create();
+      if (typeof dashInstance.updateSettings === "function") {
+        dashInstance.updateSettings({
+          streaming: {
+            text: {
+              defaultEnabled: false,
+            },
+          },
+        });
+      }
+      dashInstance.initialize(
+        video,
+        new URL(entry.src, document.baseURI).href,
+        false,
+      );
+      const dashEvents = window.dashjs.MediaPlayer.events;
+      // Build dashSubtitleTracks from a tracks array.
+      // tracksArr is the same sorted array that dash.js uses internally, so
+      // the array position (dashTrackIndex) is the correct index for setTextTrack().
+      const buildDashTracks = (tracksArr) => {
+        dashSubtitleTracks = (tracksArr || []).map((t, dashTrackIndex) => ({
+          label:
+            t?.labels?.[0]?.text ||
+            t?.label ||
+            (t?.lang
+              ? `Subtitle (${t.lang})`
+              : `Subtitle ${dashTrackIndex + 1}`),
+          language: t?.lang || "",
+          // dashApiIndex equals dashTrackIndex here — both are the sorted position
+          dashApiIndex: dashTrackIndex,
+          dashTrackIndex,
+          dashTrackRef: t,
+          type: "dash",
+        }));
+        if (typeof updateSubtitleAvailability === "function") {
+          updateSubtitleAvailability();
+        }
+      };
+
+      const refreshDashTracks = () => {
+        try {
+          buildDashTracks(dashInstance.getTracksFor("text"));
+        } catch {
+          dashSubtitleTracks = [];
+          activeDashTrackApiIndex = -1;
+          if (typeof updateSubtitleAvailability === "function") {
+            updateSubtitleAvailability();
+          }
+        }
+      };
+
+      if (dashEvents && dashEvents.STREAM_INITIALIZED) {
+        dashInstance.on(dashEvents.STREAM_INITIALIZED, () => {
+          adaptiveAttachInProgress = false;
+          refreshDashTracks();
+          refreshDashQuality();
+          disableDashTextTracks();
+          restorePlaybackState(savedTime, wasPlaying);
+        });
+      } else {
+        adaptiveAttachInProgress = false;
+        refreshDashTracks();
+        refreshDashQuality();
+        disableDashTextTracks();
+        restorePlaybackState(savedTime, wasPlaying);
+      }
+
+      // Re-read quality list once metadata is loaded — by then all
+      // representation entries from the manifest are fully parsed.
+      if (dashEvents && dashEvents.PLAYBACK_METADATA_LOADED) {
+        dashInstance.on(
+          dashEvents.PLAYBACK_METADATA_LOADED,
+          refreshDashQuality,
+        );
+      }
+      // Also refresh when dash.js switches to a different period/stream
+      if (dashEvents && dashEvents.STREAM_ACTIVATED) {
+        dashInstance.on(dashEvents.STREAM_ACTIVATED, refreshDashQuality);
+      }
+
+      if (dashEvents && dashEvents.TEXT_TRACKS_ADDED) {
+        // TEXT_TRACKS_ADDED event carries the sorted tracks array that
+        // dash.js uses internally — use it directly so positions align
+        // with what setTextTrack() expects.
+        dashInstance.on(dashEvents.TEXT_TRACKS_ADDED, (e) => {
+          try {
+            buildDashTracks(e?.tracks);
+            // Keep activeDashTrackApiIndex = -1 (None) on stream load
+            activeDashTrackApiIndex = -1;
+          } catch {
+            refreshDashTracks();
+          }
+        });
+      }
+
+      if (dashEvents && dashEvents.QUALITY_CHANGE_RENDERED) {
+        dashInstance.on(dashEvents.QUALITY_CHANGE_RENDERED, (e) => {
+          if (
+            e?.mediaType === "video" &&
+            typeof updateAdaptiveQualityButton === "function"
+          ) {
+            updateAdaptiveQualityButton();
+          }
+        });
+      }
+    });
+  };
+
+  const setActiveSource = (entry, savedTime = 0, wasPlaying = false) => {
+    if (isHlsSource(entry)) {
+      // Prefer hls.js when MSE is available — it enables quality selection.
+      // Fall back to native HLS only when MSE is absent (e.g. iOS Safari).
+      if (hasMseSupport()) {
+        setHlsJsSource(entry, savedTime, wasPlaying);
+      } else if (canPlayNativeHls()) {
+        setNativeSource(entry, savedTime, wasPlaying);
+      } else {
+        setHlsJsSource(entry, savedTime, wasPlaying); // will error-handle internally
+      }
+      return;
+    }
+    if (isDashSource(entry)) {
+      setDashJsSource(entry, savedTime, wasPlaying);
+      return;
+    }
+    setNativeSource(entry, savedTime, wasPlaying);
+  };
+
+  setActiveSource(sources[activeSourceIndex]);
 
   // Error handling for empty or broken source
   video.addEventListener(
     "error",
     () => {
+      if (adaptiveAttachInProgress) return;
       console.error("Video Error: Source is empty or could not be loaded.");
       const errorMsg = document.createElement("div");
       errorMsg.id = "videoError";
-      errorMsg.textContent = "Error: Video source is empty or unavailable";
+      const active = sources[activeSourceIndex];
+      errorMsg.textContent =
+        isHlsSource(active) &&
+        !canPlayNativeHls() &&
+        !(window.Hls && window.Hls.isSupported())
+          ? "Error: This browser does not support native HLS (.m3u8) playback"
+          : isDashSource(active) && !hasMseSupport()
+            ? "Error: This browser does not support MPEG-DASH playback"
+            : "Error: Video source is empty or unavailable";
       if (controls) controls.style.display = "none";
       if (bigPlayButton) bigPlayButton.style.display = "none";
       skeleton.style.display = "none";
@@ -280,8 +638,189 @@
     activeAssTrackSrc = null;
   };
 
+  const disableDashTextTracks = () => {
+    if (!dashInstance) return;
+    try {
+      if (typeof dashInstance.setTextTrack === "function") {
+        dashInstance.setTextTrack(-1);
+      }
+      if (typeof dashInstance.enableText === "function") {
+        dashInstance.enableText(false);
+      }
+      activeDashTrackApiIndex = -1;
+    } catch (_) {}
+  };
+
   const disableAllNativeTracks = () => {
     for (const t of video.textTracks) t.mode = "disabled";
+    disableDashTextTracks();
+    activeHlsSubtitleIndex = -1;
+    if (hlsInstance) {
+      try {
+        hlsInstance.subtitleDisplay = false;
+        hlsInstance.subtitleTrack = -1;
+      } catch (_) {}
+    }
+  };
+
+  // Build a human-readable label for an adaptive quality level
+  const makeQualityLabel = (bitrate, width, height) => {
+    if (height) return `${height}p`;
+    if (bitrate) return `${Math.round(bitrate / 1000)} kbps`;
+    return "Auto";
+  };
+
+  // Refresh DASH quality levels from the current dash instance.
+  // Deduplicates by height, keeping the highest-bitrate entry per height.
+  const refreshDashQuality = () => {
+    if (!dashInstance) return;
+    try {
+      const list = dashInstance.getBitrateInfoListFor("video") || [];
+      // Map all entries with their original qualityIndex
+      const all = list.map((b, i) => ({
+        label: makeQualityLabel(b.bitrate, b.width, b.height),
+        qualityIndex: i,
+        bitrate: b.bitrate,
+        width: b.width,
+        height: b.height,
+      }));
+      // Deduplicate: for each unique height keep the highest bitrate entry.
+      // Entries without a height are kept as-is (keyed by bitrate).
+      const byKey = new Map();
+      for (const entry of all) {
+        const key = entry.height ? `h${entry.height}` : `b${entry.bitrate}`;
+        const existing = byKey.get(key);
+        if (!existing || entry.bitrate > existing.bitrate) {
+          byKey.set(key, entry);
+        }
+      }
+      dashQualityLevels = Array.from(byKey.values());
+    } catch {
+      dashQualityLevels = [];
+    }
+    if (typeof updateAdaptiveQualityButton === "function") {
+      updateAdaptiveQualityButton();
+    }
+  };
+
+  // Refresh HLS quality levels from the current hls instance
+  const refreshHlsQuality = (levels) => {
+    if (!hlsInstance) return;
+    try {
+      const src = levels || hlsInstance.levels || [];
+      const all = src.map((l, i) => ({
+        label: makeQualityLabel(l.bitrate, l.width, l.height),
+        qualityIndex: i,
+        bitrate: l.bitrate,
+        width: l.width,
+        height: l.height,
+      }));
+      // Deduplicate: for each unique height keep the highest-bitrate entry.
+      const byKey = new Map();
+      for (const entry of all) {
+        const key = entry.height ? `h${entry.height}` : `b${entry.bitrate}`;
+        const existing = byKey.get(key);
+        if (!existing || entry.bitrate > existing.bitrate) {
+          byKey.set(key, entry);
+        }
+      }
+      hlsQualityLevels = Array.from(byKey.values());
+    } catch (err) {
+      hlsQualityLevels = [];
+    }
+    if (typeof updateAdaptiveQualityButton === "function") {
+      updateAdaptiveQualityButton();
+    }
+  };
+
+  const getNativeSubtitleEntries = () =>
+    Array.from(video.textTracks || [])
+      .map((t, i) => ({ t, i }))
+      .filter(({ t }) => t.kind === "subtitles" || t.kind === "captions")
+      .map(({ t, i }) => ({
+        label:
+          t.label || (t.language ? `Subtitle (${t.language})` : "Subtitle"),
+        nativeTrackIndex: i,
+        language: t.language || "",
+        type: "native",
+      }));
+
+  const getSubtitleMenuEntries = () => {
+    const preferDashTracks = dashSubtitleTracks.length > 0;
+    const preferHlsTracks = hlsSubtitleTracks.length > 0;
+    const configuredNativeKeys = new Set(
+      subtitleTracks
+        .filter((t) => t.type !== "ass")
+        .map(
+          (t) =>
+            `${(t.label || "").toLowerCase()}|${(t.srclang || "").toLowerCase()}`,
+        ),
+    );
+    const uniqueNativeTracks = getNativeSubtitleEntries().filter((t) => {
+      const key = `${(t.label || "").toLowerCase()}|${(t.language || "").toLowerCase()}`;
+      return !configuredNativeKeys.has(key);
+    });
+    const entries = [
+      ...subtitleTracks,
+      ...(preferDashTracks || preferHlsTracks ? [] : uniqueNativeTracks),
+      ...dashSubtitleTracks,
+      ...hlsSubtitleTracks,
+    ];
+    const seen = new Set();
+    return entries.filter((e) => {
+      let key = "";
+      if (e.type === "ass") key = `ass:${e.src || e.label}`;
+      else if (e.type === "native") key = `native:${e.nativeTrackIndex}`;
+      else if (e.type === "dash")
+        key = `dash:${e.dashApiIndex ?? e.dashTrackIndex}`;
+      else if (e.type === "hls") key = `hls:${e.hlsIndex}`;
+      else
+        key = `cfg:${e.type || "text"}:${(e.label || "").toLowerCase()}|${(e.srclang || "").toLowerCase()}|${e.src || ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const getActiveDashTrackUiIndex = () => {
+    if (!dashInstance) return -1;
+    // activeDashTrackApiIndex is the sorted array position passed to setTextTrack,
+    // which equals the dashSubtitleTracks array index — so return it directly.
+    if (activeDashTrackApiIndex === -1) return -1;
+    if (
+      Number.isInteger(activeDashTrackApiIndex) &&
+      activeDashTrackApiIndex >= 0 &&
+      dashSubtitleTracks[activeDashTrackApiIndex]
+    ) {
+      return activeDashTrackApiIndex;
+    }
+    return -1;
+  };
+
+  const activateDashTrackByIndex = (dashTrackIndex, dashApiIndex) => {
+    if (!dashInstance || dashTrackIndex == null || dashTrackIndex < 0)
+      return false;
+    try {
+      // enableText(true) must come first to activate the text renderer
+      if (typeof dashInstance.enableText === "function") {
+        dashInstance.enableText(true);
+      }
+      // setTextTrack expects the array position in getTracksFor("text") —
+      // dashTrackIndex is exactly that. Do NOT use dashApiIndex (t.index) here
+      // as it may differ from the TextController's internal array index.
+      if (typeof dashInstance.setTextTrack === "function") {
+        dashInstance.setTextTrack(dashTrackIndex);
+      }
+      activeDashTrackApiIndex =
+        typeof dashApiIndex === "number" ? dashApiIndex : dashTrackIndex;
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const updateSubtitleAvailability = () => {
+    ccButton.style.display = getSubtitleMenuEntries().length ? "" : "none";
   };
 
   // Load an ASS track via Octopus (loads the library on first use)
@@ -359,6 +898,14 @@
         console.warn("wdPlayer: failed to reach VTT file:", resolvedUrl, err);
       });
   });
+
+  if (video.textTracks && video.textTracks.addEventListener) {
+    video.textTracks.addEventListener("addtrack", updateSubtitleAvailability);
+    video.textTracks.addEventListener(
+      "removetrack",
+      updateSubtitleAvailability,
+    );
+  }
 
   // Resume toast — shown when a saved position is found
   const resumeToast = document.createElement("div");
@@ -614,20 +1161,69 @@
     const wasPlaying = !video.paused;
     const savedTime = video.currentTime;
     activeSourceIndex = index;
-    source.src = sources[index].src;
-    source.type = sources[index].type;
     thumbVideo.src = "";
     lastThumbSeekTime = -1;
-    video.load();
-    video.currentTime = savedTime;
-    if (wasPlaying) video.play().catch(() => {});
+    setActiveSource(sources[index], savedTime, wasPlaying);
   };
 
   // Update quality button label
   const updateQualityLabel = () => {
+    // Adaptive DASH quality
+    if (dashInstance && dashQualityLevels.length) {
+      if (dashQualityAuto) {
+        try {
+          const idx = dashInstance.getQualityFor("video");
+          const cur =
+            dashQualityLevels.find((l) => l.qualityIndex === idx) ||
+            dashQualityLevels[0];
+          qualityButton.textContent = cur ? `Auto (${cur.label})` : "Auto";
+        } catch {
+          qualityButton.textContent = "Auto";
+        }
+      } else {
+        try {
+          const idx = dashInstance.getQualityFor("video");
+          const cur =
+            dashQualityLevels.find((l) => l.qualityIndex === idx) ||
+            dashQualityLevels[0];
+          qualityButton.textContent = cur ? cur.label : "Quality";
+        } catch {
+          qualityButton.textContent = "Quality";
+        }
+      }
+      return;
+    }
+    // Adaptive HLS quality
+    if (hlsInstance && hlsQualityLevels.length) {
+      if (hlsQualityAuto) {
+        const idx = hlsInstance.currentLevel;
+        const cur =
+          hlsQualityLevels.find((l) => l.qualityIndex === idx) ||
+          hlsQualityLevels[0];
+        qualityButton.textContent = cur ? `Auto (${cur.label})` : "Auto";
+      } else {
+        const idx = hlsInstance.currentLevel;
+        const cur =
+          hlsQualityLevels.find((l) => l.qualityIndex === idx) ||
+          hlsQualityLevels[0];
+        qualityButton.textContent = cur ? cur.label : "Quality";
+      }
+      return;
+    }
+    // Multi-file sources
     qualityButton.textContent = isAutoMode
       ? `Auto (${sources[activeSourceIndex].label})`
       : sources[activeSourceIndex].label;
+  };
+
+  // Show/hide & update label on the quality button for adaptive streams
+  const updateAdaptiveQualityButton = () => {
+    const hasDashQ = dashInstance && dashQualityLevels.length >= 1;
+    const hasHlsQ = hlsInstance && hlsQualityLevels.length >= 1;
+    if (hasDashQ || hasHlsQ) {
+      qualityButton.style.display = "";
+    }
+    updateQualityLabel();
   };
 
   // Run one auto-quality check
@@ -672,7 +1268,112 @@
   const populateQualityMenu = () => {
     qualityMenu.replaceChildren();
 
-    // Auto option
+    // ── Adaptive DASH quality ─────────────────────────────────────────────
+    if (dashInstance && dashQualityLevels.length >= 1) {
+      let currentDashIdx = -1;
+      try {
+        currentDashIdx = dashInstance.getQualityFor("video");
+      } catch {}
+
+      const autoBtn = document.createElement("button");
+      autoBtn.classList.add("subtitle-option");
+      if (dashQualityAuto) autoBtn.classList.add("active");
+      autoBtn.textContent = "Auto";
+      if (
+        dashQualityAuto &&
+        currentDashIdx >= 0 &&
+        dashQualityLevels[currentDashIdx]
+      ) {
+        const badge = document.createElement("span");
+        badge.className = "auto-quality-badge";
+        badge.textContent = dashQualityLevels[currentDashIdx].label;
+        autoBtn.appendChild(badge);
+      }
+      autoBtn.addEventListener("click", () => {
+        dashQualityAuto = true;
+        dashInstance.updateSettings({
+          streaming: { abr: { autoSwitchBitrate: { video: true } } },
+        });
+        updateQualityLabel();
+        populateQualityMenu();
+        qualityMenu.classList.add("hidden");
+      });
+      qualityMenu.appendChild(autoBtn);
+
+      // Sort highest quality first
+      const sorted = [...dashQualityLevels].sort(
+        (a, b) => b.bitrate - a.bitrate,
+      );
+      sorted.forEach((q) => {
+        const btn = document.createElement("button");
+        btn.classList.add("subtitle-option");
+        if (!dashQualityAuto && q.qualityIndex === currentDashIdx)
+          btn.classList.add("active");
+        btn.textContent = q.label;
+        btn.addEventListener("click", () => {
+          dashQualityAuto = false;
+          dashInstance.updateSettings({
+            streaming: { abr: { autoSwitchBitrate: { video: false } } },
+          });
+          dashInstance.setQualityFor("video", q.qualityIndex, true);
+          updateQualityLabel();
+          populateQualityMenu();
+          qualityMenu.classList.add("hidden");
+        });
+        qualityMenu.appendChild(btn);
+      });
+      return;
+    }
+
+    // ── Adaptive HLS quality ──────────────────────────────────────────────
+    if (hlsInstance && hlsQualityLevels.length >= 1) {
+      const currentHlsIdx = hlsInstance.currentLevel;
+
+      const autoBtn = document.createElement("button");
+      autoBtn.classList.add("subtitle-option");
+      if (hlsQualityAuto) autoBtn.classList.add("active");
+      autoBtn.textContent = "Auto";
+      if (
+        hlsQualityAuto &&
+        currentHlsIdx >= 0 &&
+        hlsQualityLevels[currentHlsIdx]
+      ) {
+        const badge = document.createElement("span");
+        badge.className = "auto-quality-badge";
+        badge.textContent = hlsQualityLevels[currentHlsIdx].label;
+        autoBtn.appendChild(badge);
+      }
+      autoBtn.addEventListener("click", () => {
+        hlsQualityAuto = true;
+        hlsInstance.currentLevel = -1; // -1 = ABR auto
+        updateQualityLabel();
+        populateQualityMenu();
+        qualityMenu.classList.add("hidden");
+      });
+      qualityMenu.appendChild(autoBtn);
+
+      const sorted = [...hlsQualityLevels].sort(
+        (a, b) => b.bitrate - a.bitrate,
+      );
+      sorted.forEach((q) => {
+        const btn = document.createElement("button");
+        btn.classList.add("subtitle-option");
+        if (!hlsQualityAuto && q.qualityIndex === currentHlsIdx)
+          btn.classList.add("active");
+        btn.textContent = q.label;
+        btn.addEventListener("click", () => {
+          hlsQualityAuto = false;
+          hlsInstance.currentLevel = q.qualityIndex;
+          updateQualityLabel();
+          populateQualityMenu();
+          qualityMenu.classList.add("hidden");
+        });
+        qualityMenu.appendChild(btn);
+      });
+      return;
+    }
+
+    // ── Multi-file source quality ─────────────────────────────────────────
     const autoBtn = document.createElement("button");
     autoBtn.classList.add("subtitle-option");
     if (isAutoMode) autoBtn.classList.add("active");
@@ -690,7 +1391,6 @@
     });
     qualityMenu.appendChild(autoBtn);
 
-    // Manual options
     sources.forEach((s, i) => {
       const btn = document.createElement("button");
       btn.classList.add("subtitle-option");
@@ -720,10 +1420,17 @@
   const populateSubtitleMenu = () => {
     subtitleMenu.replaceChildren();
     const nativeTracks = video.textTracks;
+    const menuEntries = getSubtitleMenuEntries();
     const anyNativeActive = Array.from(nativeTracks).some(
       (t) => t.mode === "showing",
     );
-    const anyActive = anyNativeActive || octopusInstance !== null;
+    const anyDashActive = getActiveDashTrackUiIndex() !== -1;
+    const anyHlsActive = activeHlsSubtitleIndex !== -1;
+    const anyActive =
+      anyNativeActive ||
+      anyDashActive ||
+      anyHlsActive ||
+      octopusInstance !== null;
 
     // "None" option
     const offBtn = document.createElement("button");
@@ -739,46 +1446,85 @@
     subtitleMenu.appendChild(offBtn);
 
     // Build entries for each configured track
-    subtitleTracks.forEach(({ label, src, type }) => {
-      const isAss = type === "ass";
-      // Determine if this entry is currently active
-      let isActive = false;
-      if (isAss) {
-        isActive = activeAssTrackSrc === src;
-      } else {
-        // Match by label against native textTracks
-        const nativeIdx = Array.from(nativeTracks).findIndex(
-          (t) => t.label === label,
-        );
-        isActive =
-          nativeIdx !== -1 && nativeTracks[nativeIdx].mode === "showing";
-      }
-
-      const btn = document.createElement("button");
-      btn.classList.add("subtitle-option");
-      if (isActive) btn.classList.add("active");
-      const badge = document.createElement("span");
-      badge.className = "subtitle-type-badge subtitle-type-" + type;
-      badge.textContent = type.toUpperCase();
-      btn.appendChild(badge);
-      btn.appendChild(document.createTextNode(label));
-      btn.addEventListener("click", () => {
+    menuEntries.forEach(
+      ({
+        label,
+        src,
+        type,
+        nativeTrackIndex,
+        dashTrackIndex,
+        dashApiIndex,
+        hlsIndex,
+      }) => {
+        const isAss = type === "ass";
+        // Determine if this entry is currently active
+        let isActive = false;
         if (isAss) {
-          loadAssTrack(src);
+          isActive = activeAssTrackSrc === src;
+        } else if (type === "dash") {
+          isActive = getActiveDashTrackUiIndex() === dashTrackIndex;
+        } else if (type === "hls") {
+          isActive = activeHlsSubtitleIndex === hlsIndex;
         } else {
-          destroyOctopus();
-          for (const t of nativeTracks)
-            t.mode = t.label === label ? "showing" : "disabled";
+          const nativeIdx =
+            nativeTrackIndex ??
+            Array.from(nativeTracks).findIndex((t) => t.label === label);
+          isActive =
+            nativeIdx !== -1 && nativeTracks[nativeIdx].mode === "showing";
         }
-        updateCcButtonState();
-        subtitleMenu.classList.add("hidden");
-      });
-      subtitleMenu.appendChild(btn);
-    });
+
+        const btn = document.createElement("button");
+        btn.classList.add("subtitle-option");
+        if (isActive) btn.classList.add("active");
+        const badge = document.createElement("span");
+        badge.className = "subtitle-type-badge subtitle-type-" + type;
+        badge.textContent = (type || "text").toUpperCase();
+        btn.appendChild(badge);
+        btn.appendChild(document.createTextNode(label));
+        btn.addEventListener("click", () => {
+          if (isAss) {
+            loadAssTrack(src);
+          } else if (type === "dash") {
+            destroyOctopus();
+            activateDashTrackByIndex(dashTrackIndex, dashApiIndex);
+            setTimeout(updateCcButtonState, 0);
+          } else if (type === "hls") {
+            destroyOctopus();
+            hlsInstance.subtitleDisplay = true;
+            hlsInstance.subtitleTrack = hlsIndex;
+          } else {
+            // External / non-adaptive VTT — set TextTrack.mode directly
+            destroyOctopus();
+            for (let i = 0; i < nativeTracks.length; i++) {
+              const t = nativeTracks[i];
+              t.mode = (
+                nativeTrackIndex != null
+                  ? i === nativeTrackIndex
+                  : t.label === label
+              )
+                ? "showing"
+                : "disabled";
+            }
+          }
+          updateCcButtonState();
+          subtitleMenu.classList.add("hidden");
+        });
+        subtitleMenu.appendChild(btn);
+      },
+    );
   };
 
   const getActiveSubtitleEntry = () => {
     const nativeTracks = video.textTracks;
+    const activeDashUiIdx = getActiveDashTrackUiIndex();
+    if (activeDashUiIdx !== -1) {
+      const dt = dashSubtitleTracks[activeDashUiIdx];
+      if (dt) return dt;
+    }
+    if (activeHlsSubtitleIndex !== -1) {
+      const ht = hlsSubtitleTracks[activeHlsSubtitleIndex];
+      if (ht) return ht;
+    }
     for (const track of subtitleTracks) {
       if (track.type === "ass" && activeAssTrackSrc === track.src) return track;
       if (track.type !== "ass") {
@@ -787,6 +1533,15 @@
         );
         if (nt && nt.mode === "showing") return track;
       }
+    }
+    const nativeActive = Array.from(nativeTracks).find(
+      (t) => t.mode === "showing",
+    );
+    if (nativeActive) {
+      return {
+        label: nativeActive.label || nativeActive.language || "Subtitle",
+        type: "native",
+      };
     }
     return null;
   };
@@ -824,15 +1579,16 @@
     progressBar,
     volumeGroup,
     qualityButton,
-    ...(subtitleTracks.length ? [ccButton] : []),
+    ccButton,
     speedButton,
     fullScreenButton,
   );
 
   // Subtitle, quality, and speed menus are absolutely positioned inside the player wrapper
-  if (subtitleTracks.length) playerWrapper.appendChild(subtitleMenu);
-  if (sources.length > 1) playerWrapper.appendChild(qualityMenu);
+  playerWrapper.appendChild(subtitleMenu);
+  playerWrapper.appendChild(qualityMenu);
   playerWrapper.appendChild(speedMenu);
+  updateSubtitleAvailability();
 
   // Custom tooltip
   const playerTooltip = document.createElement("div");
@@ -942,7 +1698,10 @@
     skeleton.style.opacity = "0";
     setTimeout(() => skeleton.remove(), 500);
     timerDisplay.textContent = `0:00 / ${formatTime(video.duration)}`;
-    document.title = source.src.split("/").pop().split("?")[0];
+    document.title = sources[activeSourceIndex].src
+      .split("/")
+      .pop()
+      .split("?")[0];
 
     // Show resume toast if there's a saved position more than 5s in and not near the end
     try {
@@ -1057,7 +1816,7 @@
   progressBar.addEventListener("mousemove", (e) => {
     if (!video.duration) return;
     // Set thumb video source lazily on first hover
-    if (!thumbVideo.src) thumbVideo.src = source.src;
+    if (!thumbVideo.src) thumbVideo.src = sources[activeSourceIndex].src;
     const rect = progressBar.getBoundingClientRect();
     const ratio = Math.max(
       0,
@@ -1200,38 +1959,130 @@
         muteButton.click();
         break;
       case "KeyC":
-        if (subtitleTracks.length) {
+        if (getSubtitleMenuEntries().length) {
           const nativeTracks = video.textTracks;
-          const currentIdx = subtitleTracks.findIndex(
-            ({ label, src, type }) => {
+          const menuEntries = getSubtitleMenuEntries();
+          const currentIdx = menuEntries.findIndex(
+            ({
+              label,
+              src,
+              type,
+              nativeTrackIndex,
+              dashTrackIndex,
+              hlsIndex,
+            }) => {
               if (type === "ass") return activeAssTrackSrc === src;
+              if (type === "dash")
+                return getActiveDashTrackUiIndex() === dashTrackIndex;
+              if (type === "hls") return activeHlsSubtitleIndex === hlsIndex;
+              if (nativeTrackIndex != null) {
+                return nativeTracks[nativeTrackIndex]?.mode === "showing";
+              }
               const nt = Array.from(nativeTracks).find(
                 (t) => t.label === label,
               );
-              return nt?.mode === "showing";
+              return !!nt && nt.mode === "showing";
             },
           );
           const nextIdx = currentIdx + 1;
-          if (nextIdx >= subtitleTracks.length) {
+          if (nextIdx >= menuEntries.length) {
             disableAllNativeTracks();
             destroyOctopus();
             showCcToast("Off");
           } else {
-            const next = subtitleTracks[nextIdx];
+            const next = menuEntries[nextIdx];
             showCcToast(`${next.label} \u00b7 ${next.type.toUpperCase()}`);
             if (next.type === "ass") {
               loadAssTrack(next.src);
+            } else if (next.type === "dash") {
+              destroyOctopus();
+              activateDashTrackByIndex(next.dashTrackIndex, next.dashApiIndex);
+              setTimeout(updateCcButtonState, 0);
+            } else if (next.type === "hls") {
+              destroyOctopus();
+              hlsInstance.subtitleDisplay = true;
+              hlsInstance.subtitleTrack = next.hlsIndex;
             } else {
               destroyOctopus();
-              for (const t of video.textTracks)
-                t.mode = t.label === next.label ? "showing" : "disabled";
+              for (let i = 0; i < video.textTracks.length; i++) {
+                const t = video.textTracks[i];
+                t.mode = (
+                  next.nativeTrackIndex != null
+                    ? i === next.nativeTrackIndex
+                    : t.label === next.label
+                )
+                  ? "showing"
+                  : "disabled";
+              }
             }
           }
           updateCcButtonState();
         }
         break;
       case "KeyQ":
-        if (sources.length > 1) {
+        if (dashInstance && dashQualityLevels.length >= 1) {
+          // Cycle DASH quality: Auto → highest → ... → lowest → Auto
+          if (dashQualityAuto) {
+            // Switch to highest quality
+            const sorted = [...dashQualityLevels].sort(
+              (a, b) => b.bitrate - a.bitrate,
+            );
+            dashQualityAuto = false;
+            dashInstance.updateSettings({
+              streaming: { abr: { autoSwitchBitrate: { video: false } } },
+            });
+            dashInstance.setQualityFor("video", sorted[0].qualityIndex, true);
+          } else {
+            const sorted = [...dashQualityLevels].sort(
+              (a, b) => b.bitrate - a.bitrate,
+            );
+            let curIdx;
+            try {
+              curIdx = dashInstance.getQualityFor("video");
+            } catch {
+              curIdx = -1;
+            }
+            const pos = sorted.findIndex((l) => l.qualityIndex === curIdx);
+            const next = pos + 1;
+            if (next >= sorted.length) {
+              // Wrap back to Auto
+              dashQualityAuto = true;
+              dashInstance.updateSettings({
+                streaming: { abr: { autoSwitchBitrate: { video: true } } },
+              });
+            } else {
+              dashInstance.setQualityFor(
+                "video",
+                sorted[next].qualityIndex,
+                true,
+              );
+            }
+          }
+          updateQualityLabel();
+        } else if (hlsInstance && hlsQualityLevels.length >= 1) {
+          // Cycle HLS quality: Auto → highest → ... → lowest → Auto
+          if (hlsQualityAuto) {
+            const sorted = [...hlsQualityLevels].sort(
+              (a, b) => b.bitrate - a.bitrate,
+            );
+            hlsQualityAuto = false;
+            hlsInstance.currentLevel = sorted[0].qualityIndex;
+          } else {
+            const sorted = [...hlsQualityLevels].sort(
+              (a, b) => b.bitrate - a.bitrate,
+            );
+            const curIdx = hlsInstance.currentLevel;
+            const pos = sorted.findIndex((l) => l.qualityIndex === curIdx);
+            const next = pos + 1;
+            if (next >= sorted.length) {
+              hlsQualityAuto = true;
+              hlsInstance.currentLevel = -1;
+            } else {
+              hlsInstance.currentLevel = sorted[next].qualityIndex;
+            }
+          }
+          updateQualityLabel();
+        } else if (sources.length > 1) {
           if (isAutoMode) {
             stopAutoMode();
             switchSource(0);

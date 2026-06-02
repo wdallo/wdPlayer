@@ -1,6 +1,6 @@
 # wdPlayer
 
-Lightweight, dependency-free HTML5 video player with quality switching, playback speed control, adaptive buffering, ASS/VTT subtitles, resume playback, volume persistence, URL-encoded configuration, full responsive/mobile support, and accessibility improvements (ARIA labels, landmarks, touch targets).
+Lightweight, dependency-free HTML5 video player with adaptive streaming (HLS & DASH), quality switching, playback speed control, ASS/VTT subtitles (including embedded subtitle tracks from HLS/DASH manifests), resume playback, volume persistence, URL-encoded configuration, full responsive/mobile support, and accessibility improvements (ARIA labels, landmarks, touch targets).
 
 ![wdPlayer screenshot 1](screenShots/1.jpg)
 ![wdPlayer screenshot 2](screenShots/2.jpg)
@@ -15,6 +15,8 @@ generator.html    — Visual URL builder (no JSON required)
 css/wdPlayer.css  — Player styles
 css/pages.css     — Shared styles for index.html and generator.html
 js/wdPlayer.js    — All player logic (IIFE, no dependencies)
+js/hls.js         — hls.js (lazy-loaded only when HLS source is used)
+js/dash.all.js    — dash.js (lazy-loaded only when DASH source is used)
 js/octopus/       — SubtitlesOctopus (lazy-loaded only when ASS is used)
 subtitles/        — Example subtitle files
 ```
@@ -27,7 +29,7 @@ subtitles/        — Example subtitle files
 embed.html?v=https://example.com/video.mp4
 ```
 
-Type is auto-detected from the file extension (`.mp4`, `.webm`, `.ogg`).
+Type is auto-detected from the file extension (`.mp4`, `.webm`, `.ogg`, `.m3u8`, `.mpd`).
 
 ---
 
@@ -70,6 +72,17 @@ const cfg = {
   sources: [
     { label: "1080p", src: "https://…/1080.mp4", type: "video/mp4" },
     { label: "720p", src: "https://…/720.mp4", type: "video/mp4" },
+    // Adaptive streams — quality menu populated automatically from manifest
+    {
+      label: "HLS",
+      src: "https://…/stream.m3u8",
+      type: "application/x-mpegURL",
+    },
+    {
+      label: "DASH",
+      src: "https://…/stream.mpd",
+      type: "application/dash+xml",
+    },
   ],
   subtitles: [
     { label: "English", src: "subtitles/en.vtt", type: "vtt", srclang: "en" },
@@ -118,14 +131,46 @@ Copy the iFrame snippet directly from the **Encoded → iFrame** tab in the gene
 
 ---
 
+## Adaptive Streaming
+
+The player supports both **HLS** (`.m3u8`) and **DASH** (`.mpd`) adaptive streams via hls.js and dash.js respectively. Both libraries are lazy-loaded only when needed.
+
+### HLS
+
+- Detected by `.m3u8` extension or `application/x-mpegURL` / `application/vnd.apple.mpegurl` type
+- Uses **hls.js** when MSE is available (Chrome, Firefox, Edge) — enables quality selection
+- Falls back to native HLS on iOS Safari (no quality menu)
+- **Quality menu** is populated automatically from the manifest levels
+- **Subtitle tracks** embedded in the HLS manifest are loaded automatically (type badge: `HLS`); external subtitle files can still be added alongside
+
+### DASH
+
+- Detected by `.mpd` extension or `application/dash+xml` type
+- Uses **dash.js** with ABR enabled by default
+- **Quality menu** populated automatically from available bitrate representations
+- **Subtitle tracks** from the MPD are loaded automatically (type badge: `DASH`); external subtitle files can still be added alongside
+
+### Quality Menu
+
+- **Auto** — ABR is active; the button shows the currently rendered resolution (e.g. `Auto (1080p)`)
+- **Manual level** — ABR is disabled; the button shows the selected resolution (e.g. `1080p`)
+- Duplicate resolutions at different bitrates are deduplicated — only the highest-bitrate entry per resolution is shown
+- `Q` key cycles through levels just like the menu
+
+---
+
 ## Subtitles
 
-| Format | How                      | Notes                                       |
-| ------ | ------------------------ | ------------------------------------------- |
-| VTT    | Native `<track>` element | Validated with HEAD request before adding   |
-| ASS    | SubtitlesOctopus         | Lazy-loaded from `js/octopus/` on first use |
+| Format | Type badge | How                      | Notes                                              |
+| ------ | ---------- | ------------------------ | -------------------------------------------------- |
+| VTT    | `VTT`      | Native `<track>` element | Validated with HEAD request before adding          |
+| ASS    | `ASS`      | SubtitlesOctopus         | Lazy-loaded from `js/octopus/` on first use        |
+| HLS    | `HLS`      | hls.js subtitle API      | Embedded tracks from HLS manifest; default is None |
+| DASH   | `DASH`     | dash.js text renderer    | Embedded tracks from DASH MPD; default is None     |
 
-The CC button in the controls bar highlights in cyan when a subtitle track is active. Clicking it opens a track-selection menu; pressing `C` cycles through all tracks and back to Off, with a brief on-screen toast confirming the change.
+When an adaptive stream provides embedded subtitle tracks (HLS or DASH), those tracks are shown in the menu and **native `<track>` elements are not listed** (to avoid duplicates). If the stream has no embedded subtitles, only the externally configured VTT/ASS files are shown.
+
+The CC button highlights in cyan when a subtitle track is active. Clicking it opens a track-selection menu; pressing `C` cycles through all tracks and back to Off, with a brief on-screen toast confirming the change.
 
 ---
 
@@ -148,9 +193,9 @@ Keyboard shortcut hints are shown inside button tooltips on desktop (pointer) de
 
 ---
 
-## Auto quality
+## Auto quality (multi-file sources)
 
-On load the player measures bandwidth via `navigator.connection.downlink` (or a timed fetch probe as fallback) and picks the best source. It re-checks every 5 seconds and reacts to `connection` change events. Manual override is available via the quality button.
+When multiple plain MP4/WebM sources are provided (no adaptive stream), the player measures bandwidth via `navigator.connection.downlink` (or a timed fetch probe as fallback) and picks the best source. It re-checks every 5 seconds and reacts to `connection` change events. Manual override is available via the quality button.
 
 If the video stalls for more than 3 seconds while in auto mode, the player immediately steps down one quality level (stall recovery).
 
@@ -174,7 +219,7 @@ Volume level and mute state are saved to `localStorage` and restored automatical
 
 - `preload="auto"` — the browser buffers ahead of the playhead
 - Spinner is **debounced** (300 ms delay) so it does not flash during quick seeks
-- **Stall recovery** — if buffering persists for 3 s in auto mode, the player steps down one quality level immediately
+- **Stall recovery** — if buffering persists for 3 s in auto mode (multi-file), the player steps down one quality level immediately
 
 ---
 
