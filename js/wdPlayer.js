@@ -357,6 +357,7 @@
       destroyAdaptivePlayers();
       source.removeAttribute("src");
       source.removeAttribute("type");
+      source.remove();
 
       hlsInstance = new window.Hls({
         enableWorker: true,
@@ -432,6 +433,7 @@
       destroyAdaptivePlayers();
       source.removeAttribute("src");
       source.removeAttribute("type");
+      source.remove();
 
       dashInstance = window.dashjs.MediaPlayer().create();
       if (typeof dashInstance.updateSettings === "function") {
@@ -1641,12 +1643,18 @@
         const clamped = Math.max(4, Math.min(wr.width - tw - 4, rawLeft));
         playerTooltip.style.left = clamped + "px";
       });
-      btn.addEventListener("mouseleave", () =>
-        playerTooltip.classList.remove("visible"),
-      );
-      btn.addEventListener("mousedown", () =>
-        playerTooltip.classList.remove("visible"),
-      );
+      btn.addEventListener("mouseleave", () => {
+        playerTooltip.classList.remove("visible");
+        if (playerTooltip.classList.length === 0) {
+          playerTooltip.removeAttribute("class");
+        }
+      });
+      btn.addEventListener("mousedown", () => {
+        playerTooltip.classList.remove("visible");
+        if (playerTooltip.classList.length === 0) {
+          playerTooltip.removeAttribute("class");
+        }
+      });
     });
   } // end TOOLTIPS_ENABLED
 
@@ -2093,7 +2101,15 @@
         break;
       case "ArrowUp":
         e.preventDefault();
-        video.volume = Math.min(1, parseFloat((video.volume + 0.1).toFixed(2)));
+        if (video.muted) {
+          video.muted = false;
+          video.volume = 0.1;
+        } else {
+          video.volume = Math.min(
+            1,
+            parseFloat((video.volume + 0.1).toFixed(2)),
+          );
+        }
         break;
       case "ArrowDown":
         e.preventDefault();
@@ -2298,6 +2314,9 @@
     let x = e.clientX - pr.left;
     let y = e.clientY - pr.top;
     contextMenu.classList.remove("hidden");
+    if (contextMenu.classList.length === 0) {
+      contextMenu.removeAttribute("class");
+    }
     const mw = contextMenu.offsetWidth;
     const mh = contextMenu.offsetHeight;
     if (x + mw > pr.width) x = pr.width - mw - 4;

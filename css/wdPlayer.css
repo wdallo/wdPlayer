@@ -120,7 +120,7 @@ main {
   fill: currentColor;
 }
 #ccButton.active svg {
-  fill: #00bfff !important;
+  fill: #276cff !important;
 }
 @media (hover: hover) {
   #ccButton:hover {
