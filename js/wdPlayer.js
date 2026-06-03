@@ -2146,12 +2146,18 @@
   });
 
   // --- Fullscreen controls & cursor auto-hide logic ---
+
+  const shield = document.createElement("div");
+  shield.id = "controls-trigger-shield";
+  playerWrapper.insertBefore(shield, controls);
+
   let controlsHideTimeout = null;
 
   function showControls() {
     controls.style.opacity = 1;
     controls.style.pointerEvents = "auto";
     playerWrapper.style.cursor = "";
+    clearTimeout(controlsHideTimeout);
   }
 
   function hideControls() {
@@ -2168,13 +2174,45 @@
   }
 
   // Show controls and restart hide timer on mouse move (fullscreen only)
-  playerWrapper.addEventListener("mousemove", () => {
+  // Change playerWrapper to the shield element to fix mouse movements in fullscreen mode
+  shield.addEventListener("mousemove", () => {
     if (document.fullscreenElement === playerWrapper) {
       showControls();
       scheduleControlsHide();
     }
   });
 
+  // EXTRA: Prevent controls from disappearing when the user hovers directly
+  // over the buttons or the timeline (the controls element itself):
+  controls.addEventListener("mousemove", () => {
+    if (document.fullscreenElement === playerWrapper) {
+      showControls();
+      scheduleControlsHide();
+    }
+  });
+
+  shield.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    toggleFullScreen();
+  });
+
+  // Handle double tap for mobile and tablet users
+  let lastTap = 0;
+  shield.addEventListener("touchend", (e) => {
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - lastTap;
+
+    // If the time between two taps is less than 300ms, trigger fullscreen
+    if (tapLength < 300 && tapLength > 0) {
+      e.preventDefault();
+      toggleFullScreen();
+    } else {
+      // If it is a single tap, just show the controls
+      showControls();
+      scheduleControlsHide();
+    }
+    lastTap = currentTime;
+  });
   // Schedule hide when video starts playing (fullscreen only) + hide resume toast
   video.addEventListener("play", () => {
     if (document.fullscreenElement === playerWrapper) scheduleControlsHide();
