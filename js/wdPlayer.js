@@ -1902,21 +1902,6 @@
   fullScreenButton.addEventListener("click", toggleFullScreen);
   bigPlayButton.addEventListener("click", playPauseVideo);
 
-  // Single click = play/pause, double click = fullscreen
-  let clickTimer = null;
-  video.addEventListener("click", () => {
-    if (clickTimer) {
-      clearTimeout(clickTimer);
-      clickTimer = null;
-      toggleFullScreen();
-    } else {
-      clickTimer = setTimeout(() => {
-        clickTimer = null;
-        playPauseVideo();
-      }, 220);
-    }
-  });
-
   // Update fullscreen icon and handle controls visibility on fullscreen change
   document.addEventListener("fullscreenchange", () => {
     fullScreenButton.replaceChildren(
@@ -2190,26 +2175,43 @@
       scheduleControlsHide();
     }
   });
+  let clickTimeout;
 
-  shield.addEventListener("dblclick", (event) => {
-    event.preventDefault();
-    toggleFullScreen();
+  // Handle click and double click for desktop mouse users
+  shield.addEventListener("click", (e) => {
+    // Clear any existing timeout to check if it's a double click
+    clearTimeout(clickTimeout);
+
+    if (e.detail === 1) {
+      // Wait 250ms to ensure it's not a double click
+      clickTimeout = setTimeout(() => {
+        // Toggle Play/Pause on single click
+        playPauseVideo();
+      }, 250);
+    } else if (e.detail === 2) {
+      // Trigger fullscreen immediately on double click
+      e.preventDefault();
+      toggleFullScreen();
+    }
   });
 
-  // Handle double tap for mobile and tablet users
+  // Handle touch for mobile and tablet users (Single Tap and Double Tap)
   let lastTap = 0;
   shield.addEventListener("touchend", (e) => {
     const currentTime = new Date().getTime();
     const tapLength = currentTime - lastTap;
 
-    // If the time between two taps is less than 300ms, trigger fullscreen
+    clearTimeout(clickTimeout);
+
     if (tapLength < 300 && tapLength > 0) {
+      // Trigger fullscreen on double tap
       e.preventDefault();
       toggleFullScreen();
     } else {
-      // If it is a single tap, just show the controls
-      showControls();
-      scheduleControlsHide();
+      // Wait 250ms to ensure it's a single tap, then toggle Play/Pause
+      clickTimeout = setTimeout(() => {
+        playPauseVideo();
+      }, 250);
     }
     lastTap = currentTime;
   });
