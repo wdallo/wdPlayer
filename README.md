@@ -242,6 +242,8 @@ The player features a custom text watermark (logo) that acts as a brand overlay 
 
 - **Responsiveness & Bounds** — The logo is locked to the top-right corner (15px padding) of the active video frame. By binding the player wrapper to a strict aspect ratio, the text never leaks outside the actual video boundaries into the empty black bars (letterboxing).
 
+---
+
 ## Responsive / Mobile
 
 The player and both pages adapt to all screen sizes:
