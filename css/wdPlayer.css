@@ -74,14 +74,6 @@ main {
 #playerTooltip.visible {
   opacity: 1;
 }
-/* 
-  Ensures the logo stays on top during native browser fullscreen 
-  by targetting the wrapper when it enters fullscreen mode.
-*/
-#playerWrapper:fullscreen #logo,
-#playerWrapper:-webkit-full-screen #logo {
-  z-index: 2147483647; /* Maximum possible z-index value to beat native controls */
-}
 
 /* Initial state: Hidden and ready to fade in */
 #logo {
