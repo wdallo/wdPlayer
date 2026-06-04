@@ -75,6 +75,36 @@ main {
   opacity: 1;
 }
 
+/* Initial state: Hidden and ready to fade in */
+#logo {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  z-index: 10;
+  pointer-events: none;
+
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: 0.5px;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+
+  /* Setup initial state for animation */
+  opacity: 0;
+  visibility: hidden;
+  /* 0.8s is animation duration, 0.5s is the timer/delay before it starts */
+  transition:
+    opacity 0.8s ease-in-out 0.5s,
+    visibility 0.8s ease-in-out 0.5s;
+}
+
+/* Becomes fully visible after the delay */
+#logo.active {
+  opacity: 1;
+  visibility: visible;
+}
 #bufferingSpinner {
   position: absolute;
   inset: 0;

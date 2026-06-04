@@ -234,6 +234,14 @@ On desktop the toast appears in the bottom-left corner. On mobile (≤ 480 px) i
 
 ---
 
+## Video Watermark (Logo)
+
+The player features a custom text watermark (logo) that acts as a brand overlay during playback. The element is attached directly to the player wrapper, ensuring it remains visible and correctly positioned across all browsers.
+
+- **Animation** — The logo remains completely hidden until playback starts. Once the user hits play, it triggers.
+
+- **Responsiveness & Bounds** — The logo is locked to the top-right corner (15px padding) of the active video frame. By binding the player wrapper to a strict aspect ratio, the text never leaks outside the actual video boundaries into the empty black bars (letterboxing).
+
 ## Responsive / Mobile
 
 The player and both pages adapt to all screen sizes:
