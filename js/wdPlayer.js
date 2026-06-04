@@ -1,6 +1,8 @@
 (function () {
   // ─── Config ───────────────────────────────────────────────────────────────
   const TOOLTIPS_ENABLED = true; // set false to disable button tooltips
+  const LOGO_ENABLED = true; // set false to disable logo on video
+  const LOGO_TEXT = "wdPlayer"; // set website name etc., LOGO_ENABLED must be true
   // ──────────────────────────────────────────────────────────────────────────
 
   // Get the main player wrapper element
@@ -87,6 +89,38 @@
   video.preload = "auto";
   playerWrapper.appendChild(video);
 
+  // Create Logo element and add it to the player
+  if (LOGO_ENABLED) {
+    const logo = document.createElement("span");
+    logo.id = "logo";
+    logo.textContent = LOGO_TEXT;
+    playerWrapper.appendChild(logo);
+  }
+  function repositionLogo() {
+    const videoRatio = video.videoWidth / video.videoHeight;
+    const wrapperRatio = playerWrapper.clientWidth / playerWrapper.clientHeight;
+
+    let actualVideoWidth;
+    let actualVideoHeight;
+
+    if (wrapperRatio > videoRatio) {
+      // Video has black bars on the sides
+      actualVideoHeight = playerWrapper.clientHeight;
+      actualVideoWidth = actualVideoHeight * videoRatio;
+    } else {
+      // Video has black bars on top and bottom
+      actualVideoWidth = playerWrapper.clientWidth;
+      actualVideoHeight = actualVideoWidth / videoRatio;
+    }
+
+    // Calculate the offset (black bar size)
+    const horizontalBar = (playerWrapper.clientWidth - actualVideoWidth) / 2;
+    const verticalBar = (playerWrapper.clientHeight - actualVideoHeight) / 2;
+
+    // Position logo inside the real video frame (e.g., 15px from inside edges)
+    logo.style.right = `${horizontalBar + 15}px`;
+    logo.style.top = `${verticalBar + 15}px`;
+  }
   // Encode/decode config as URL-safe Base64 with minified keys (shorter URL)
   // Short keys: sources→v, subtitles→u, label→l, src→s, type→t, srclang→sl
   const _minify = (cfg) => ({
@@ -1704,6 +1738,7 @@
 
   // Toggle fullscreen mode for the player
   const toggleFullScreen = () => {
+    if (LOGO_ENABLED) repositionLogo();
     if (!document.fullscreenElement) {
       if (playerWrapper.requestFullscreen) playerWrapper.requestFullscreen();
       else if (playerWrapper.webkitRequestFullscreen)
@@ -1715,6 +1750,7 @@
 
   // Remove skeleton loader and set initial timer when video metadata is ready
   video.addEventListener("loadedmetadata", () => {
+    if (LOGO_ENABLED) repositionLogo(); /// reposition logo place to be on video
     skeleton.style.opacity = "0";
     setTimeout(() => skeleton.remove(), 500);
     timerDisplay.textContent = `0:00 / ${formatTime(video.duration)}`;
@@ -1740,6 +1776,8 @@
       }
     } catch (_) {}
   });
+  // run on resize logo if LOGO is enabled
+  if (LOGO_ENABLED) window.addEventListener("resize", repositionLogo);
 
   // Show buffering spinner when video is waiting/buffering
   // Debounced: only show spinner if buffering lasts longer than 300ms (avoids flash on seeks)
@@ -2243,8 +2281,13 @@
     }
     lastTap = currentTime;
   });
+
+  // GET LOGO
+  const logoElement = document.getElementById("logo");
+
   // Schedule hide when video starts playing (fullscreen only) + hide resume toast
   video.addEventListener("play", () => {
+    if (LOGO_ENABLED) logoElement.classList.add("active");
     if (document.fullscreenElement === playerWrapper) scheduleControlsHide();
     resumeToast.style.display = "none";
   });
