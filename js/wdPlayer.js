@@ -1063,6 +1063,9 @@
     e.stopPropagation();
     populateSpeedMenu();
     speedMenu.classList.toggle("hidden");
+    if (!speedMenu.className) {
+      speedMenu.removeAttribute("class");
+    }
     subtitleMenu.classList.add("hidden");
     qualityMenu.classList.add("hidden");
   });
@@ -1414,6 +1417,10 @@
     e.stopPropagation();
     populateQualityMenu();
     qualityMenu.classList.toggle("hidden");
+
+    if (!qualityMenu.className) {
+      qualityMenu.removeAttribute("class");
+    }
     subtitleMenu.classList.add("hidden");
     speedMenu.classList.add("hidden");
   });
@@ -1559,6 +1566,10 @@
     e.stopPropagation();
     populateSubtitleMenu();
     subtitleMenu.classList.toggle("hidden");
+
+    if (!subtitleMenu.className) {
+      subtitleMenu.removeAttribute("class");
+    }
     qualityMenu.classList.add("hidden");
     speedMenu.classList.add("hidden");
   });
@@ -1645,13 +1656,14 @@
       });
       btn.addEventListener("mouseleave", () => {
         playerTooltip.classList.remove("visible");
-        if (playerTooltip.classList.length === 0) {
+        if (!playerTooltip.className) {
           playerTooltip.removeAttribute("class");
         }
       });
       btn.addEventListener("mousedown", () => {
         playerTooltip.classList.remove("visible");
-        if (playerTooltip.classList.length === 0) {
+
+        if (!playerTooltip.className) {
           playerTooltip.removeAttribute("class");
         }
       });
@@ -2314,7 +2326,7 @@
     let x = e.clientX - pr.left;
     let y = e.clientY - pr.top;
     contextMenu.classList.remove("hidden");
-    if (contextMenu.classList.length === 0) {
+    if (!contextMenu.className) {
       contextMenu.removeAttribute("class");
     }
     const mw = contextMenu.offsetWidth;
