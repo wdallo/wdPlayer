@@ -9,16 +9,45 @@ Lightweight, dependency-free HTML5 video player with adaptive streaming (HLS & D
 ## Files
 
 ```
-index.html        — Demo page with player, features, and usage docs
-embed.html        — Standalone player shell (use this in iframes or directly)
-generator.html    — Visual URL builder (no JSON required)
-css/wdPlayer.css  — Player styles
-css/pages.css     — Shared styles for index.html and generator.html
-js/wdPlayer.js    — All player logic (IIFE, no dependencies)
-js/hls.js         — hls.js (lazy-loaded only when HLS source is used)
-js/dash.all.js    — dash.js (lazy-loaded only when DASH source is used)
-js/octopus/       — SubtitlesOctopus (lazy-loaded only when ASS is used)
-subtitles/        — Example subtitle files
+├  📂 css
+│  ├  📄 pages-min.css — Shared styles for index.html and generator.html (Minify version)
+│  ├  📄 pages.css — Shared styles for index.html and generator.html
+│  ├  📄 wdPlayer-min.css — Player styles (Minify version)
+│  ╰  📄 wdPlayer.css — Player styles
+├  📂 js
+│  ├  📂 octopus — SubtitlesOctopus (lazy-loaded only when ASS is used)
+│  │  ├  📂 fonts
+│  │  │  ├  📄 ARIALBD.TTF
+│  │  │  ├  📄 default.woff2
+│  │  │  ╰  📄 NotoSansJP-Bold.ttf
+│  │  ├  📄 subtitles-octopus-worker-legacy.js
+│  │  ├  📄 subtitles-octopus-worker.js
+│  │  ├  📄 subtitles-octopus-worker.wasm
+│  │  ╰  📄 subtitles-octopus.js
+│  ├  📄 dash.all-min.js — dash.js (lazy-loaded only when DASH source is used) (Minify version)
+│  ├  📄 dash.all.js — dash.js (lazy-loaded only when DASH source is used)
+│  ├  📄 generator-min.js — All generator logic (Minify version)
+│  ├  📄 generator.js — All generator logic
+│  ├  📄 hls-min.js  — hls.js (lazy-loaded only when HLS source is used) (Minify version)
+│  ├  📄 hls.js  — hls.js (lazy-loaded only when HLS source is used)
+│  ├  📄 wdPlayer-min.js — All player logic (IIFE, no dependencies) (Minify version)
+│  ╰  📄 wdPlayer.js — All player logic (IIFE, no dependencies)
+├  📂 screenShots — Example screenshot files
+│  ├  📄 1.jpg
+│  ├  📄 2.jpg
+│  ╰  📄 3.jpg
+├  📂 subtitles — Example subtitle files
+│  ├  📄 subtitles.en.ass
+│  ├  📄 subtitles.en.vtt
+│  ╰  📄 subtitles.lt.vtt
+├  📄 doc.html — Documentation
+├  📄 embed.html — Standalone player shell (use this in iframes or directly)
+├  📄 fav.png — FavIcon
+├  📄 generator.html — Visual URL builder (no JSON required)
+├  📄 index.html — Demo page with player, features, and usage docs
+╰  📄 README.md — Read Me file
+
+
 ```
 
 ## Usage
