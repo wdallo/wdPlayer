@@ -132,20 +132,85 @@
       const addSource = (label = "", src = "", type = "video/mp4") => {
         const entry = document.createElement("div");
         entry.className = "entry source-entry";
-        entry.innerHTML = `
-          <div class="field"><div class="col-label" aria-hidden="true">Label</div>
-            <input type="text" placeholder="1080p" value="${esc(label)}" data-key="label" aria-label="Source label" /></div>
-          <div class="field"><div class="col-label" aria-hidden="true">URL</div>
-            <input type="text" placeholder="https://…/video.mp4" value="${esc(src)}" data-key="src" aria-label="Source URL" /></div>
-          <div class="field"><div class="col-label" aria-hidden="true">Type</div>
-            <select data-key="type" aria-label="Source type">
-              <option value="video/mp4" ${type === "video/mp4" ? "selected" : ""}>video/mp4</option>
-              <option value="video/webm" ${type === "video/webm" ? "selected" : ""}>video/webm</option>
-              <option value="video/ogg" ${type === "video/ogg" ? "selected" : ""}>video/ogg</option>
-              <option value="application/x-mpegURL" ${type === "application/x-mpegURL" ? "selected" : ""}>HLS (.m3u8)</option>
-              <option value="application/dash+xml" ${type === "application/dash+xml" ? "selected" : ""}> DASH (.mpd)</option>
-            </select></div>
-          <button class="btn-remove" aria-label="Remove source">✕</button>`;
+        entry.textContent = "";
+        // ---  (Label) ---
+        const labelField = document.createElement("div");
+        labelField.className = "field";
+
+        const labelCol = document.createElement("div");
+        labelCol.className = "col-label";
+        labelCol.setAttribute("aria-hidden", "true");
+        labelCol.textContent = "Label";
+
+        const labelInput = document.createElement("input");
+        labelInput.type = "text";
+        labelInput.placeholder = "1080p";
+        labelInput.value = label;
+        labelInput.setAttribute("data-key", "label");
+        labelInput.setAttribute("aria-label", "Source label");
+
+        labelField.append(labelCol, labelInput);
+
+        // --- (URL) ---
+        const urlField = document.createElement("div");
+        urlField.className = "field";
+
+        const urlCol = document.createElement("div");
+        urlCol.className = "col-label";
+        urlCol.setAttribute("aria-hidden", "true");
+        urlCol.textContent = "URL";
+
+        const urlInput = document.createElement("input");
+        urlInput.type = "text";
+        urlInput.placeholder = "https://…/video.mp4";
+        urlInput.value = src;
+        urlInput.setAttribute("data-key", "src");
+        urlInput.setAttribute("aria-label", "Source URL");
+
+        urlField.append(urlCol, urlInput);
+
+        // --- (Type Select) ---
+        const typeField = document.createElement("div");
+        typeField.className = "field";
+
+        const typeCol = document.createElement("div");
+        typeCol.className = "col-label";
+        typeCol.setAttribute("aria-hidden", "true");
+        typeCol.textContent = "Type";
+
+        const typeSelect = document.createElement("select");
+        typeSelect.setAttribute("data-key", "type");
+        typeSelect.setAttribute("aria-label", "Source type");
+
+        const optionsData = [
+          { value: "video/mp4", text: "video/mp4" },
+          { value: "video/webm", text: "video/webm" },
+          { value: "video/ogg", text: "video/ogg" },
+          { value: "application/x-mpegURL", text: "HLS (.m3u8)" },
+          { value: "application/dash+xml", text: "DASH (.mpd)" },
+        ];
+
+        optionsData.forEach((opt) => {
+          const option = document.createElement("option");
+          option.value = opt.value;
+          option.textContent = opt.text;
+          if (type === opt.value) {
+            option.selected = true;
+          }
+          typeSelect.append(option);
+        });
+
+        typeField.append(typeCol, typeSelect);
+
+        // --- Remove Button ---
+        const removeButton = document.createElement("button");
+        removeButton.className = "btn-remove";
+        removeButton.setAttribute("aria-label", "Remove source");
+        removeButton.textContent = "✕";
+        removeButton.id = "removeSource";
+
+        entry.append(labelField, urlField, typeField, removeButton);
+
         entry
           .querySelector(".btn-remove")
           .addEventListener("click", () => entry.remove());
@@ -156,19 +221,100 @@
       const addSub = (label = "", src = "", type = "vtt", srclang = "") => {
         const entry = document.createElement("div");
         entry.className = "entry sub-entry";
-        entry.innerHTML = `
-          <div class="field"><div class="col-label" aria-hidden="true">Label</div>
-            <input type="text" placeholder="English" value="${esc(label)}" data-key="label" aria-label="Subtitle label" /></div>
-          <div class="field"><div class="col-label" aria-hidden="true">URL</div>
-            <input type="text" placeholder="subtitles/en.vtt" value="${esc(src)}" data-key="src" aria-label="Subtitle URL" /></div>
-          <div class="field"><div class="col-label" aria-hidden="true">Type</div>
-            <select data-key="type" aria-label="Subtitle type">
-              <option value="vtt" ${type === "vtt" ? "selected" : ""}>VTT</option>
-              <option value="ass" ${type === "ass" ? "selected" : ""}>ASS</option>
-            </select></div>
-          <div class="field"><div class="col-label" aria-hidden="true">Lang</div>
-            <input type="text" placeholder="en" value="${esc(srclang)}" data-key="srclang" maxlength="10" aria-label="Subtitle language code" /></div>
-          <button class="btn-remove" aria-label="Remove subtitle">✕</button>`;
+        entry.textContent = "";
+
+        // ---  (Label) ---
+        const labelField = document.createElement("div");
+        labelField.className = "field";
+
+        const labelCol = document.createElement("div");
+        labelCol.className = "col-label";
+        labelCol.setAttribute("aria-hidden", "true");
+        labelCol.textContent = "Label";
+
+        const labelInput = document.createElement("input");
+        labelInput.type = "text";
+        labelInput.placeholder = "English";
+        labelInput.value = label;
+        labelInput.setAttribute("data-key", "label");
+        labelInput.setAttribute("aria-label", "Subtitle label");
+
+        labelField.append(labelCol, labelInput);
+
+        // --- (URL) ---
+        const urlField = document.createElement("div");
+        urlField.className = "field";
+
+        const urlCol = document.createElement("div");
+        urlCol.className = "col-label";
+        urlCol.setAttribute("aria-hidden", "true");
+        urlCol.textContent = "URL";
+
+        const urlInput = document.createElement("input");
+        urlInput.type = "text";
+        urlInput.placeholder = "subtitles/en.vtt";
+        urlInput.value = src;
+        urlInput.setAttribute("data-key", "src");
+        urlInput.setAttribute("aria-label", "Subtitle URL");
+
+        urlField.append(urlCol, urlInput);
+
+        // --- (Type Select) ---
+        const typeField = document.createElement("div");
+        typeField.className = "field";
+
+        const typeCol = document.createElement("div");
+        typeCol.className = "col-label";
+        typeCol.setAttribute("aria-hidden", "true");
+        typeCol.textContent = "Type";
+
+        const typeSelect = document.createElement("select");
+        typeSelect.setAttribute("data-key", "type");
+        typeSelect.setAttribute("aria-label", "Subtitle type");
+
+        const optionsData = [
+          { value: "vtt", text: "VTT" },
+          { value: "ass", text: "ASS" },
+        ];
+
+        optionsData.forEach((opt) => {
+          const option = document.createElement("option");
+          option.value = opt.value;
+          option.textContent = opt.text;
+          if (type === opt.value) {
+            option.selected = true;
+          }
+          typeSelect.append(option);
+        });
+
+        typeField.append(typeCol, typeSelect);
+
+        // --- (Lang) ---
+        const langField = document.createElement("div");
+        langField.className = "field";
+
+        const langCol = document.createElement("div");
+        langCol.className = "col-label";
+        langCol.setAttribute("aria-hidden", "true");
+        langCol.textContent = "Lang";
+
+        const langInput = document.createElement("input");
+        langInput.type = "text";
+        langInput.placeholder = "en";
+        langInput.value = srclang;
+        langInput.setAttribute("data-key", "srclang");
+        langInput.maxLength = 10;
+        langInput.setAttribute("aria-label", "Subtitle language code");
+
+        langField.append(langCol, langInput);
+
+        // --- Remove Button ---
+        const removeButton = document.createElement("button");
+        removeButton.className = "btn-remove";
+        removeButton.setAttribute("aria-label", "Remove subtitle");
+        removeButton.textContent = "✕";
+
+        entry.append(labelField, urlField, typeField, langField, removeButton);
         entry
           .querySelector(".btn-remove")
           .addEventListener("click", () => entry.remove());
@@ -189,7 +335,9 @@
       // ── Refresh Info ─────────────────────────────────────────────────────────
       const videoTypeSelect = document.querySelector('select[data-key="type"]');
       const labelInput = document.querySelector('input[data-key="label"]');
+      const dataSrc = document.querySelector('input[data-key="src"]');
       const addSourceBtn = document.getElementById("addSource");
+      const removeSourceBtn = document.getElementById("removeSource");
 
       videoTypeSelect.addEventListener("change", (event) => {
         const mimeType = event.target.value;
@@ -204,8 +352,14 @@
         // 1. element status (disabled)
         labelInput.disabled = isStream;
         addSourceBtn.disabled = isStream;
+        removeSourceBtn.disabled = isStream;
+        removeSourceBtn.style.visibility = isStream ? "hidden" : "visible";
+        dataSrc.placeholder = isStream
+          ? mimeType === "application/dash+xml"
+            ? "https://.../video.mpd"
+            : "https://.../video.m3u8"
+          : "https://.../video.mp4"; /// https://…/video.mp4
 
-        // 2. update text and values
         addSourceBtn.textContent = isStream
           ? "Disabled For This"
           : "+ Add source";
