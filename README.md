@@ -170,6 +170,8 @@ The player supports both **HLS** (`.m3u8`) and **DASH** (`.mpd`) adaptive stream
 - Uses **hls.js** when MSE is available (Chrome, Firefox, Edge) — enables quality selection
 - Falls back to native HLS on iOS Safari (no quality menu)
 - **Quality menu** is populated automatically from the manifest levels
+- **Multi-audio tracks** are detected and populated directly from the HLS manifest
+  the interface element triggers on-demand only when alternative audio tracks are found, supporting seamless real-time language switching.
 - **Subtitle tracks** embedded in the HLS manifest are loaded automatically (type badge: `HLS`); external subtitle files can still be added alongside
 
 ### DASH
@@ -177,6 +179,9 @@ The player supports both **HLS** (`.m3u8`) and **DASH** (`.mpd`) adaptive stream
 - Detected by `.mpd` extension or `application/dash+xml` type
 - Uses **dash.js** with ABR enabled by default
 - **Quality menu** populated automatically from available bitrate representations
+- **Multi-audio tracks** are parsed dynamically from the MPD manifest
+  the microphone button initializes on-demand only if multiple audio streams are detected, allowing hot-swapping of language buffers mid-stream.
+
 - **Subtitle tracks** from the MPD are loaded automatically (type badge: `DASH`); external subtitle files can still be added alongside
 
 ### Quality Menu
