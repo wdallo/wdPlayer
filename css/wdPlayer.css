@@ -159,6 +159,7 @@ main {
 }
 
 #subtitleMenu,
+#audioSelectMenu,
 #qualityMenu,
 #speedMenu {
   position: absolute;
@@ -178,11 +179,13 @@ main {
   gap: 2px;
 }
 #subtitleMenu.hidden,
+#audioSelectMenu.hidden,
 #qualityMenu.hidden,
 #speedMenu.hidden {
   display: none;
 }
 #subtitleMenu button,
+#audioSelectMenu button,
 #qualityMenu button,
 #speedMenu button {
   background: none;
@@ -197,6 +200,7 @@ main {
 }
 @media (hover: hover) {
   #subtitleMenu button:hover,
+  #audioSelectMenu button:hover,
   #qualityMenu button:hover,
   #speedMenu button:hover {
     background: #222;
@@ -206,6 +210,9 @@ main {
 #qualityMenu {
   right: 165px;
 }
+#audioSelectMenu {
+  right: 125px;
+}
 #subtitleMenu {
   right: 85px;
 }
@@ -213,7 +220,27 @@ main {
   right: 45px;
 }
 
-/* Speed button — styled like quality button */
+#audioSelectButton {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+  width: 35px;
+  text-align: center;
+  flex-shrink: 0;
+}
+@media (hover: hover) {
+  #audioSelectButton:hover {
+    background: rgba(255, 255, 255, 0.22);
+  }
+}
 #speedButton {
   font-size: 12px;
   font-weight: 600;
@@ -263,6 +290,7 @@ main {
 
 /* Menu option layout (shared: subtitle + quality + speed) */
 #subtitleMenu .subtitle-option,
+#audioSelectMenu .subtitle-option,
 #qualityMenu .subtitle-option,
 #speedMenu .subtitle-option {
   display: flex;
@@ -272,6 +300,7 @@ main {
   padding-left: 9px;
 }
 #subtitleMenu .subtitle-option.active,
+#audioSelectMenu .subtitle-option.active,
 #qualityMenu .subtitle-option.active,
 #speedMenu .subtitle-option.active {
   border-left-color: #fff;
@@ -837,7 +866,7 @@ input[type="range"]::-moz-range-track {
 
   /* Menus span full width on small screens */
   #subtitleMenu,
-  #qualityMenu {
+  #audioSelectMenu #qualityMenu {
     left: 8px;
     right: 8px;
     bottom: 70px;

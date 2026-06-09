@@ -52,6 +52,7 @@
     volumeHigh: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>`,
     volumeLow: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18.5 12A4.5 4.5 0 0016 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg>`,
     volumeMuted: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16.5 12A4.5 4.5 0 0014 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 003.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>`,
+    mic: `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>`,
   };
 
   // Helper to get an SVG icon element by name — parses once, then clones from cache
@@ -397,10 +398,106 @@
         enableWorker: true,
         lowLatencyMode: true,
       });
+
+      /**
+       * Dynamic Audio Tracks Parser for hls.js
+       * Generates HTML UI only if the manifest dictates multiple tracks
+       */
+      const refreshHlsAudio = () => {
+        try {
+          // Fetch all available audio streams bound to the current hlsInstance
+          const audioTracks = hlsInstance.audioTracks || [];
+
+          // CRITICAL UI SAFEGUARD: If stream has 1 or fewer audio variants, wipe any leftover UI components and exit
+          if (audioTracks.length <= 1) {
+            const oldBtn = document.getElementById("audioSelectButton");
+            const oldMenu = document.getElementById("audioSelectMenu");
+
+            if (oldBtn) oldBtn.remove(); // Completely removes the button from DOM
+            if (oldMenu) oldMenu.remove(); // Completely removes the menu container from DOM
+
+            // Unbind the global click listener to prevent memory leaks
+            if (typeof activeAudioCleanup === "function") {
+              activeAudioCleanup();
+              activeAudioCleanup = null;
+            }
+            return; // STOP EXECUTION HERE - No button or menu will be created!
+          }
+
+          // TRACK VALIDATION PASSED (2 or more languages found): Initialize DOM elements on demand
+          const { audioSelect, audioSelectMenu, closeMenuHandler } =
+            multiAudio();
+          activeAudioCleanup = () =>
+            document.removeEventListener("click", closeMenuHandler);
+
+          // Identify which track index signature is currently assigned as active by hls.js engine
+          const currentTrackId = hlsInstance.audioTrack;
+          audioSelectMenu.innerHTML = "";
+
+          // Populate the clean wrapper layout with real streams parsed from the active .m3u8 manifest
+          audioTracks.forEach((track) => {
+            const trackBtn = document.createElement("button");
+            trackBtn.classList.add("subtitle-option");
+
+            // Evaluate item indexes to flag the active choice layout class matching the audio pipeline
+            const isCurrent =
+              currentTrackId === track.id ||
+              (currentTrackId === -1 && (track.default || track.active));
+            if (isCurrent) {
+              trackBtn.classList.add("active");
+            }
+
+            // Normalize localized data descriptors (e.g., "en" -> "EN")
+            const langName = track.lang
+              ? track.lang.toUpperCase()
+              : track.name || "UNKNOWN";
+            trackBtn.textContent = langName;
+
+            // Process user language selection
+            trackBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+
+              // Instruct hls.js core engine to hot-swap audio track buffers by numeric ID signature
+              hlsInstance.audioTrack = track.id;
+
+              // Update visual tracking states dynamically inside the dropup module layout wrapper
+              if (audioSelectMenu) {
+                const allOptions =
+                  audioSelectMenu.querySelectorAll(".subtitle-option");
+                allOptions.forEach((btn) => {
+                  btn.classList.remove("active");
+                  if (btn.classList.length === 0) {
+                    btn.removeAttribute("class");
+                  }
+                });
+              }
+
+              trackBtn.classList.add("active");
+              audioSelectMenu?.classList.add("hidden");
+            });
+
+            audioSelectMenu.appendChild(trackBtn);
+          });
+        } catch (err) {
+          console.error(
+            "wdPlayer: Failed to parse hls.js audio components",
+            err,
+          );
+        }
+      };
+
       hlsInstance.on(window.Hls.Events.MANIFEST_PARSED, (event, data) => {
         adaptiveAttachInProgress = false;
         refreshHlsQuality(data && data.levels);
         restorePlaybackState(savedTime, wasPlaying);
+      });
+
+      hlsInstance.on(window.Hls.Events.AUDIO_TRACKS_UPDATED, (event, data) => {
+        // We read the tracks directly from the event data or the fallback player instance
+        const tracks =
+          (data && data.audioTracks) || hlsInstance.audioTracks || [];
+
+        refreshHlsAudio();
       });
       hlsInstance.on(
         window.Hls.Events.SUBTITLE_TRACKS_UPDATED,
@@ -485,6 +582,7 @@
         false,
       );
       const dashEvents = window.dashjs.MediaPlayer.events;
+
       // Build dashSubtitleTracks from a tracks array.
       // tracksArr is the same sorted array that dash.js uses internally, so
       // the array position (dashTrackIndex) is the correct index for setTextTrack().
@@ -519,12 +617,84 @@
           }
         }
       };
+      /**
+       * Dynamic Audio Tracks Parser for dash.js
+       * Generates HTML UI only if the manifest dictates multiple tracks
+       */
+      const refreshDashAudio = () => {
+        try {
+          const audioTracks = dashInstance.getTracksFor("audio") || [];
 
+          // Fallback Strategy: If stream has 1 or fewer audio variants, wipe any leftover UI components and exit
+          if (audioTracks.length <= 1) {
+            const oldBtn = document.getElementById("audioSelectButton");
+            const oldMenu = document.getElementById("audioSelectMenu");
+            if (oldBtn) oldBtn.remove();
+            if (oldMenu) oldMenu.remove();
+            if (typeof activeAudioCleanup === "function") activeAudioCleanup();
+            return;
+          }
+
+          // Track Validation Passed: Initialize DOM elements on demand and store the listener removal hook
+          const { audioSelect, audioSelectMenu, closeMenuHandler } =
+            multiAudio();
+          activeAudioCleanup = () =>
+            document.removeEventListener("click", closeMenuHandler);
+
+          const currentTrack = dashInstance.getCurrentTrackFor("audio");
+          audioSelectMenu.innerHTML = "";
+
+          // Populate the clean wrapper layout with real streams parsed from the active MPD manifest
+          audioTracks.forEach((track) => {
+            const trackBtn = document.createElement("button");
+            trackBtn.classList.add("subtitle-option");
+
+            // Evaluate item indexes to flag the active choice layout class matching the audio buffer pipeline
+            const isCurrent =
+              currentTrack && currentTrack.index === track.index;
+            if (isCurrent) {
+              trackBtn.classList.add("active");
+            }
+
+            // Normalize localized data descriptors (e.g., "en" -> "EN")
+            const langName = track.lang ? track.lang.toUpperCase() : "UNKNOWN";
+            const trackRoles =
+              track.roles && track.roles.length
+                ? ` (${track.roles.join(", ")})`
+                : "";
+            trackBtn.textContent = `${langName}${trackRoles}`;
+
+            // Process user language selection
+            trackBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              dashInstance.setCurrentTrack(track);
+
+              // Update visual tracking states dynamically inside the dropup module layout wrapper
+              audioSelectMenu
+                .querySelectorAll(".subtitle-option")
+                .forEach((btn) => {
+                  btn.classList.remove("active");
+                });
+
+              trackBtn.classList.add("active");
+              audioSelectMenu.classList.add("hidden");
+            });
+
+            audioSelectMenu.appendChild(trackBtn);
+          });
+        } catch (err) {
+          console.error(
+            "wdPlayer: Failed to parse dash.js audio components",
+            err,
+          );
+        }
+      };
       if (dashEvents && dashEvents.STREAM_INITIALIZED) {
         dashInstance.on(dashEvents.STREAM_INITIALIZED, () => {
           adaptiveAttachInProgress = false;
           refreshDashTracks();
           refreshDashQuality();
+          refreshDashAudio(); //  Refresh audio tracks when stream initializes
           disableDashTextTracks();
           restorePlaybackState(savedTime, wasPlaying);
         });
@@ -532,6 +702,7 @@
         adaptiveAttachInProgress = false;
         refreshDashTracks();
         refreshDashQuality();
+        refreshDashAudio(); // Fallback audio track ignition sequence
         disableDashTextTracks();
         restorePlaybackState(savedTime, wasPlaying);
       }
@@ -542,11 +713,16 @@
         dashInstance.on(
           dashEvents.PLAYBACK_METADATA_LOADED,
           refreshDashQuality,
+          refreshDashAudio,
         );
       }
       // Also refresh when dash.js switches to a different period/stream
       if (dashEvents && dashEvents.STREAM_ACTIVATED) {
-        dashInstance.on(dashEvents.STREAM_ACTIVATED, refreshDashQuality);
+        dashInstance.on(
+          dashEvents.STREAM_ACTIVATED,
+          refreshDashQuality,
+          refreshDashAudio,
+        );
       }
 
       if (dashEvents && dashEvents.TEXT_TRACKS_ADDED) {
@@ -1102,6 +1278,10 @@
     }
     subtitleMenu.classList.add("hidden");
     qualityMenu.classList.add("hidden");
+    const audioSelectMenu = document.getElementById("audioSelectMenu");
+    if (audioSelectMenu) {
+      audioSelectMenu.classList.add("hidden");
+    }
   });
 
   // Auto mode state
@@ -1457,6 +1637,10 @@
     }
     subtitleMenu.classList.add("hidden");
     speedMenu.classList.add("hidden");
+    const audioSelectMenu = document.getElementById("audioSelectMenu");
+    if (audioSelectMenu) {
+      audioSelectMenu.classList.add("hidden");
+    }
   });
 
   // Populate the subtitle menu — handles both VTT (native tracks) and ASS (Octopus)
@@ -1606,6 +1790,10 @@
     }
     qualityMenu.classList.add("hidden");
     speedMenu.classList.add("hidden");
+    const audioSelectMenu = document.getElementById("audioSelectMenu");
+    if (audioSelectMenu) {
+      audioSelectMenu.classList.add("hidden");
+    }
   });
 
   // Close all menus when clicking outside
@@ -1613,6 +1801,10 @@
     subtitleMenu.classList.add("hidden");
     qualityMenu.classList.add("hidden");
     speedMenu.classList.add("hidden");
+    const audioSelectMenu = document.getElementById("audioSelectMenu");
+    if (audioSelectMenu) {
+      audioSelectMenu.classList.add("hidden");
+    }
   });
 
   // Add all controls to the controls container
@@ -2297,6 +2489,57 @@
     showControls();
     clearTimeout(controlsHideTimeout);
   });
+
+  /// Dash / HLS multi audio code - Call only when multiple tracks exist
+  const multiAudio = () => {
+    // UI Safeguard: Evict any existing button/menu instances from previous stream loads to avoid duplicates
+    const oldBtn = document.getElementById("audioSelectButton");
+    const oldMenu = document.getElementById("audioSelectMenu");
+    if (oldBtn) oldBtn.remove();
+    if (oldMenu) oldMenu.remove();
+
+    // Create the interactive mic trigger element node
+    const audioSelect = document.createElement("button");
+    audioSelect.id = "audioSelectButton";
+    audioSelect.setAttribute("aria-label", "Audio");
+    audioSelect.replaceChildren(getIcon("mic"));
+
+    // Inject structural node positionally right before the Subtitle (CC) element if active
+    if (ccButton && ccButton.parentNode === controls) {
+      controls.insertBefore(audioSelect, ccButton);
+    } else {
+      controls.appendChild(audioSelect);
+    }
+
+    // Generate the clean dropdown menu wrapper inside the root player block
+    const audioSelectMenu = document.createElement("div");
+    audioSelectMenu.id = "audioSelectMenu";
+    audioSelectMenu.classList.add("hidden");
+    playerWrapper.appendChild(audioSelectMenu);
+
+    // Toggle dropdown menu expansion on explicit click events
+    audioSelect.addEventListener("click", (e) => {
+      e.stopPropagation(); // Essential: Stops event from bubbling to video container and pausing playback
+      audioSelectMenu.classList.toggle("hidden");
+      qualityMenu.classList.add("hidden");
+      subtitleMenu.classList.add("hidden");
+      speedMenu.classList.add("hidden");
+      if (!audioSelectMenu.className) {
+        audioSelectMenu.removeAttribute("class");
+      }
+    });
+
+    // Global click tracking logic to collapse menu when user clicks outside the UI surface area
+    const closeMenuHandler = (e) => {
+      if (!audioSelectMenu.contains(e.target) && e.target !== audioSelect) {
+        audioSelectMenu.classList.add("hidden");
+      }
+    };
+    document.addEventListener("click", closeMenuHandler);
+
+    // Return live references and event handlers directly back to the active instantiation pipeline
+    return { audioSelect, audioSelectMenu, closeMenuHandler };
+  };
 
   // Custom right-click context menu with player info
   const contextMenu = document.createElement("div");
