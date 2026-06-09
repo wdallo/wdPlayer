@@ -317,7 +317,9 @@
   };
 
   let hlsInstance = null;
+  let thumbHlsInstance = null;
   let dashInstance = null;
+  let thumbDashInstance = null;
   let dashSubtitleTracks = [];
   let activeDashTrackApiIndex = -1;
   let hlsSubtitleTracks = [];
@@ -340,6 +342,33 @@
       dashInstance.reset();
       dashInstance = null;
     }
+    if (typeof thumbDashInstance !== "undefined" && thumbDashInstance) {
+      thumbDashInstance.destroy();
+      thumbDashInstance = null;
+    }
+    if (typeof thumbHlsInstance !== "undefined" && thumbHlsInstance) {
+      thumbHlsInstance.destroy();
+      thumbHlsInstance = null;
+    }
+
+    /**
+     * Using window['thumbVideo'] or document.getElementById bypasses the JavaScript
+     * 'Temporal Dead Zone' (ReferenceError) when the const is declared lower in the file.
+     */
+    const activeThumbVideo =
+      window.thumbVideo ||
+      document.getElementById("thumbVideo") ||
+      document.querySelector(".thumb-video");
+
+    if (activeThumbVideo) {
+      activeThumbVideo.removeAttribute("src");
+      try {
+        activeThumbVideo.load(); // Safely flush internal browser video buffers
+      } catch (e) {
+        // Prevent edge-case errors if element is momentarily detached
+      }
+    }
+
     dashSubtitleTracks = [];
     activeDashTrackApiIndex = -1;
     hlsSubtitleTracks = [];
@@ -2061,12 +2090,86 @@
       } catch (_) {}
     }
   });
-
   // Show thumbnail + time tooltip on progress bar hover
   progressBar.addEventListener("mousemove", (e) => {
     if (!video.duration) return;
-    // Set thumb video source lazily on first hover
-    if (!thumbVideo.src) thumbVideo.src = sources[activeSourceIndex].src;
+
+    // Fetch the currently active media entry object
+    const currentEntry = sources[activeSourceIndex];
+
+    // Set thumb video source lazily on first hover actions
+    if (!thumbVideo.src && !thumbDashInstance && !thumbHlsInstance) {
+      // CASE 1: Check if the source target points to a DASH stream layout (.mpd manifest)
+      if (currentEntry.src.includes(".mpd") && window.dashjs) {
+        if (thumbDashInstance) {
+          thumbDashInstance.destroy();
+        }
+        thumbDashInstance = window.dashjs.MediaPlayer().create();
+        thumbDashInstance.updateSettings({
+          streaming: {
+            text: { defaultEnabled: false },
+            audio: { muted: true },
+            buffer: {
+              fastSwitchEnabled: true,
+              bufferTimeAtTopQuality: 2,
+              bufferTimeAtTopQualityLongForm: 2,
+            },
+          },
+        });
+        thumbDashInstance.initialize(
+          thumbVideo,
+          new URL(currentEntry.src, document.baseURI).href,
+          false,
+        );
+
+        // Critical wake-up buffer trigger for dash.js
+        thumbVideo
+          .play()
+          .then(() => {
+            thumbVideo.pause();
+          })
+          .catch(() => {});
+
+        // CASE 2: Check if the source target points to an HLS stream layout (.m3u8 manifest)
+      } else if (
+        currentEntry.src.includes(".m3u8") &&
+        window.Hls &&
+        window.Hls.isSupported()
+      ) {
+        if (thumbHlsInstance) {
+          thumbHlsInstance.destroy();
+        }
+
+        // Initialize a miniature auxiliary hls.js player instance specifically for the timeline thumbnails
+        thumbHlsInstance = new window.Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          autoStartLoad: true,
+        });
+
+        // Turn off tracking subtitles/captions on background container layer to optimize bandwidth
+        thumbVideo.muted = true;
+        thumbHlsInstance.loadSource(
+          new URL(currentEntry.src, document.baseURI).href,
+        );
+        thumbHlsInstance.attachMedia(thumbVideo);
+
+        /**
+         * CRITICAL HLS WAKE-UP BUFFER TRIGGER:
+         * Force hls.js network controller layer to start buffering immediate frames
+         */
+        thumbVideo
+          .play()
+          .then(() => {
+            thumbVideo.pause();
+          })
+          .catch(() => {});
+      } else {
+        // CASE 3: Fallback bind source directly for vanilla progressive MP4 configurations
+        thumbVideo.src = currentEntry.src;
+      }
+    }
+
     const rect = progressBar.getBoundingClientRect();
     const ratio = Math.max(
       0,
@@ -2077,11 +2180,22 @@
       hoverTime,
       video.duration >= 3600,
     );
+
     // Throttle seeks: only seek if hovered time changed by more than 0.5s
     if (Math.abs(hoverTime - lastThumbSeekTime) > 0.5) {
       lastThumbSeekTime = hoverTime;
-      thumbVideo.currentTime = hoverTime;
+
+      /**
+       * CRITICAL SEEK CONTROLLER STRATEGY:
+       * Choose active engine pipeline binding to enforce background buffer updates
+       */
+      if (thumbDashInstance) {
+        thumbDashInstance.seek(hoverTime); // Direct dash.js controller seek execution
+      } else {
+        thumbVideo.currentTime = hoverTime; // Native assignment works fine for MP4 and hls.js attachments
+      }
     }
+
     // Position tooltip centred above hover point, clamped inside the player
     const playerRect = playerWrapper.getBoundingClientRect();
     const rawLeft = e.clientX - playerRect.left;
