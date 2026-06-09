@@ -181,7 +181,6 @@ The player supports both **HLS** (`.m3u8`) and **DASH** (`.mpd`) adaptive stream
 - **Quality menu** populated automatically from available bitrate representations
 - **Multi-audio tracks** are parsed dynamically from the MPD manifest
   the microphone button initializes on-demand only if multiple audio streams are detected, allowing hot-swapping of language buffers mid-stream.
-
 - **Subtitle tracks** from the MPD are loaded automatically (type badge: `DASH`); external subtitle files can still be added alongside
 
 ### Quality Menu
