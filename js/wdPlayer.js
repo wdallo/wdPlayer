@@ -8,22 +8,54 @@
   // Get the main player wrapper element
   const playerWrapper = document.getElementById("wdPlayer");
 
+  // Helper function to create elements - start
+  // Universal helper to create elements: tags, properties, styles, and children
+  const el = (tag, props, style, children) => {
+    const element = document.createElement(tag);
+
+    // Safely assign properties and attributes
+    if (props) {
+      Object.keys(props).forEach((key) => {
+        // If the key contains a dash (like aria-* or data-*) or is a custom attribute, use setAttribute
+        if (
+          key.includes("-") ||
+          key === "max" ||
+          key === "step" ||
+          key === "min"
+        ) {
+          element.setAttribute(key, props[key]);
+        } else {
+          element[key] = props[key];
+        }
+      });
+    }
+
+    if (style) Object.assign(element.style, style);
+
+    if (children) {
+      if (typeof children === "string") {
+        element.textContent = children;
+      } else if (Array.isArray(children)) {
+        element.append(...children.filter(Boolean));
+      }
+    }
+    return element;
+  };
+  // Helper function to create elements - end
+
   // Create skeleton loader
-  const skeleton = document.createElement("div");
-  skeleton.id = "skeletonLoader";
-  const shimmerEl = document.createElement("div");
-  shimmerEl.className = "shimmer";
-  skeleton.appendChild(shimmerEl);
-  playerWrapper.appendChild(skeleton);
+  const skeleton = el("div", { id: "skeletonloader" });
+  skeleton.append(el("div", { className: "shimmer" }));
+  playerWrapper.append(skeleton);
 
   // Buffering spinner overlay
-  const bufferingSpinner = document.createElement("div");
-  bufferingSpinner.id = "bufferingSpinner";
-  const spinnerEl = document.createElement("div");
-  spinnerEl.className = "spinner";
-  bufferingSpinner.appendChild(spinnerEl);
-  bufferingSpinner.style.display = "none";
-  playerWrapper.appendChild(bufferingSpinner);
+  const bufferingSpinner = el(
+    "div",
+    { id: "bufferingSpinner" },
+    { display: "none" },
+  );
+  bufferingSpinner.append(el("div", { className: "spinner" }));
+  playerWrapper.append(bufferingSpinner);
 
   // OSD toast factory — creates a brief on-screen notification element
   const makeOsdToast = (id) => {
@@ -85,17 +117,12 @@
   };
 
   // Create the video element and add it to the player
-  const video = document.createElement("video");
-  video.id = "wd";
-  video.preload = "auto";
+  const video = el("video", { id: "wd", preload: "auto" });
   playerWrapper.appendChild(video);
 
   // Create Logo element and add it to the player
   if (LOGO_ENABLED) {
-    const logo = document.createElement("span");
-    logo.id = "logo";
-    logo.textContent = LOGO_TEXT;
-    playerWrapper.appendChild(logo);
+    playerWrapper.append(el("span", { id: "logo", textContent: LOGO_TEXT }));
   }
   function repositionLogo() {
     const videoRatio = video.videoWidth / video.videoHeight;
@@ -166,15 +193,24 @@
 
   // Infer media MIME type from URL when source.type is omitted
   const inferSourceTypeFromUrl = (url) => {
-    const clean = String(url || "")
+    // Extract the extension cleanly in one line without url parameters
+    const ext = String(url || "")
       .split("?")[0]
-      .toLowerCase();
-    const ext = clean.split(".").pop();
-    if (ext === "m3u8") return "application/vnd.apple.mpegurl";
-    if (ext === "mpd") return "application/dash+xml";
-    if (ext === "webm") return "video/webm";
-    if (ext === "ogv" || ext === "ogg") return "video/ogg";
-    return "video/mp4";
+      .split(".")
+      .pop()
+      ?.toLowerCase();
+
+    // Map extensions directly to their respective MIME types
+    const types = {
+      m3u8: "application/vnd.apple.mpegurl",
+      mpd: "application/dash+xml",
+      webm: "video/webm",
+      ogv: "video/ogg",
+      ogg: "video/ogg",
+    };
+
+    // Return the matched type, or fall back to mp4
+    return types[ext] || "video/mp4";
   };
 
   // Sources and subtitles come entirely from URL params — no storage needed.
@@ -231,31 +267,30 @@
 
   // If sources is empty (no valid params), show error UI and stop execution
   if (!sources.length) {
-    const noSrcErr = document.createElement("div");
-    noSrcErr.id = "videoError";
-    noSrcErr.appendChild(document.createTextNode("No video sources provided."));
-    noSrcErr.appendChild(document.createElement("br"));
-    const noSrcHint = document.createElement("small");
-    const noSrcCode1 = document.createElement("code");
-    noSrcCode1.textContent = "?sources=[...]";
-    const noSrcCode2 = document.createElement("code");
-    noSrcCode2.textContent = "?v=HASH";
-    noSrcHint.appendChild(document.createTextNode("Use "));
-    noSrcHint.appendChild(noSrcCode1);
-    noSrcHint.appendChild(document.createTextNode(" or "));
-    noSrcHint.appendChild(noSrcCode2);
-    noSrcErr.appendChild(noSrcHint);
+    // Create the main error container and nest all child elements inside it
+    const noSrcErr = el("div", { id: "videoError" }, null, [
+      "No video sources provided.",
+      el("br"),
+      el("small", null, null, [
+        "Use ",
+        el("code", { textContent: "?sources=[...]" }),
+        " or ",
+        el("code", { textContent: "?v=HASH" }),
+      ]),
+    ]);
+
+    // Hide the skeleton loader since there is an error
     skeleton.style.display = "none";
-    playerWrapper.appendChild(noSrcErr);
+
+    // Push the single error component into the main wrapper
+    playerWrapper.append(noSrcErr);
     return;
   }
 
   let activeSourceIndex = 0;
 
-  // localStorage key for resume position — keyed by the ?v= URL param
-  const resumeKey =
-    "wdPlayer:resume:" +
-    (new URLSearchParams(location.search).get("v") ?? sources[0].src);
+  // localStorage key for resume position — keyed safely by the ?v= URL param
+  const resumeKey = `wdPlayer:resume:${new URLSearchParams(location.search).get("v") ?? sources[0]?.src ?? ""}`;
 
   const HLS_MIME_TYPES = [
     "application/vnd.apple.mpegurl",
@@ -264,56 +299,60 @@
   const DASH_MIME_TYPES = ["application/dash+xml"];
   const HLS_JS_URL = "js/hls-min.js";
   const DASH_JS_URL = "js/dash.all-min.js";
+
   const hasMseSupport = () =>
     !!(window.MediaSource || window.WebKitMediaSource);
   const canPlayNativeHls = () =>
     HLS_MIME_TYPES.some((mime) => video.canPlayType(mime) !== "");
+
   const isHlsSource = (entry) => {
     if (!entry) return false;
     const type = (entry.type || "").toLowerCase();
-    if (HLS_MIME_TYPES.includes(type)) return true;
-    return /\.m3u8(\?|$)/i.test(entry.src || "");
+    return (
+      HLS_MIME_TYPES.includes(type) || /\.m3u8(\?|$)/i.test(entry.src || "")
+    );
   };
+
   const isDashSource = (entry) => {
     if (!entry) return false;
     const type = (entry.type || "").toLowerCase();
-    if (DASH_MIME_TYPES.includes(type)) return true;
-    return /\.mpd(\?|$)/i.test(entry.src || "");
+    return (
+      DASH_MIME_TYPES.includes(type) || /\.mpd(\?|$)/i.test(entry.src || "")
+    );
   };
 
-  // Shared dynamic script loader for optional playback engines
+  // Shared dynamic script loader for optional playback engines (HLS / DASH)
   const scriptLoadState = {};
   const loadExternalScript = (src, globalName, cb) => {
-    if (window[globalName]) {
-      cb(true);
-      return;
-    }
+    if (window[globalName]) return cb(true);
+
     if (!scriptLoadState[src]) {
       scriptLoadState[src] = { loading: false, loaded: false, callbacks: [] };
     }
+
     const state = scriptLoadState[src];
-    if (state.loaded) {
-      cb(true);
-      return;
-    }
+    if (state.loaded) return cb(true);
+
     state.callbacks.push(cb);
     if (state.loading) return;
     state.loading = true;
 
-    const s = document.createElement("script");
-    s.src = src;
+    // Use our global custom helper function to instantiate the script element cleanly
+    const s = el("script", { src });
+
     s.onload = () => {
       state.loading = false;
       state.loaded = !!window[globalName];
-      const ok = state.loaded;
-      state.callbacks.splice(0).forEach((fn) => fn(ok));
+      state.callbacks.splice(0).forEach((fn) => fn(state.loaded));
     };
+
     s.onerror = () => {
       state.loading = false;
       state.loaded = false;
       state.callbacks.splice(0).forEach((fn) => fn(false));
     };
-    document.head.appendChild(s);
+
+    document.head.append(s); // Modern DOM manipulation for head insertion
   };
 
   let hlsInstance = null;
@@ -830,16 +869,15 @@
   );
 
   // Create CC Button — hidden by default, shown only if a subtitle track loads successfully
-  const ccButton = document.createElement("button");
-  ccButton.id = "ccButton";
-  ccButton.setAttribute("aria-label", "Subtitles");
-  ccButton.style.display = "none";
-  ccButton.replaceChildren(getIcon("cc"));
+  const ccButton = el(
+    "button",
+    { id: "ccButton", "aria-label": "Subtitles" },
+    { display: "none" },
+  );
+  ccButton.append(getIcon("cc")); // Clean and consistent icon insertion
 
   // Create Subtitles Menu Container
-  const subtitleMenu = document.createElement("div");
-  subtitleMenu.id = "subtitleMenu";
-  subtitleMenu.classList.add("hidden");
+  const subtitleMenu = el("div", { id: "subtitleMenu", className: "hidden" });
 
   // subtitleTracks declared above alongside sources (URL param handling section)
 
@@ -1149,101 +1187,119 @@
   }
 
   // Resume toast — shown when a saved position is found
-  const resumeToast = document.createElement("div");
-  resumeToast.id = "resumeToast";
-  resumeToast.style.display = "none";
-  const resumeToastText = document.createElement("span");
-  const resumeBtn = document.createElement("button");
-  resumeBtn.id = "resumeBtn";
-  resumeBtn.textContent = "Resume";
-  const resumeDismissBtn = document.createElement("button");
-  resumeDismissBtn.id = "resumeDismissBtn";
-  resumeDismissBtn.setAttribute("aria-label", "Dismiss");
-  resumeDismissBtn.textContent = "\u00d7";
-  resumeToast.appendChild(resumeToastText);
-  resumeToast.appendChild(resumeBtn);
-  resumeToast.appendChild(resumeDismissBtn);
-  playerWrapper.appendChild(resumeToast);
+  const resumeToastText = el("span");
+  const resumeBtn = el("button", { id: "resumeBtn", textContent: "Resume" });
+  const resumeDismissBtn = el("button", {
+    id: "resumeDismissBtn",
+    textContent: "×",
+    "aria-label": "Dismiss",
+  });
+
+  const resumeToast = el("div", { id: "resumeToast" }, { display: "none" }, [
+    resumeToastText,
+    resumeBtn,
+    resumeDismissBtn,
+  ]);
 
   // Create the central big play button
-  const bigPlayButton = document.createElement("button");
-  bigPlayButton.id = "bigPlayButton";
-  bigPlayButton.setAttribute("aria-label", "Play");
-  bigPlayButton.replaceChildren(getIcon("play"));
-  playerWrapper.appendChild(bigPlayButton);
+  const bigPlayButton = el("button", {
+    id: "bigPlayButton",
+    "aria-label": "Play",
+  });
+  bigPlayButton.append(getIcon("play"));
 
   // Create the controls container
-  const controls = document.createElement("div");
-  controls.id = "controls";
-  playerWrapper.appendChild(controls);
+  const controls = el("div", { id: "controls" });
 
   // Create control buttons and elements
-  const playButton = document.createElement("button");
-  playButton.id = "playPause";
-  playButton.setAttribute("aria-label", "Play");
-  playButton.replaceChildren(getIcon("play"));
+  const playButton = el("button", { id: "playPause", "aria-label": "Play" });
+  playButton.append(getIcon("play"));
 
-  const fullScreenButton = document.createElement("button");
-  fullScreenButton.id = "fullScreen";
-  fullScreenButton.setAttribute("aria-label", "Enter fullscreen");
-  fullScreenButton.replaceChildren(getIcon("fullscreen"));
+  const fullScreenButton = el("button", {
+    id: "fullScreen",
+    "aria-label": "Enter fullscreen",
+  });
+  fullScreenButton.append(getIcon("fullscreen"));
 
-  const timerDisplay = document.createElement("span");
-  timerDisplay.id = "timer";
-  timerDisplay.textContent = "0:00 / 0:00";
+  const timerDisplay = el("span", { id: "timer", textContent: "0:00 / 0:00" });
 
-  const progressBar = document.createElement("input");
-  progressBar.id = "progressBar";
-  progressBar.type = "range";
-  progressBar.setAttribute("aria-label", "Seek");
-  progressBar.value = 0;
-  progressBar.max = 100;
-  progressBar.step = 0.1;
+  const progressBar = el("input", {
+    id: "progressBar",
+    type: "range",
+    value: 0,
+    max: 100,
+    step: 0.1,
+    "aria-label": "Seek",
+  });
 
   // Tooltip shown above progress bar on hover (thumbnail + time)
-  const progressTooltip = document.createElement("div");
-  progressTooltip.id = "progressTooltip";
-  progressTooltip.style.display = "none";
-  const thumbCanvas = document.createElement("canvas");
-  thumbCanvas.width = 160;
-  thumbCanvas.height = 90;
-  const thumbCtx = thumbCanvas.getContext("2d");
-  const thumbShimmer = document.createElement("div");
-  thumbShimmer.id = "thumbShimmer";
-  const progressTooltipTime = document.createElement("span");
-  progressTooltipTime.id = "progressTooltipTime";
-  progressTooltip.appendChild(thumbCanvas);
-  progressTooltip.appendChild(thumbShimmer);
-  progressTooltip.appendChild(progressTooltipTime);
-  playerWrapper.appendChild(progressTooltip);
+  const thumbShimmer = el("div", { id: "thumbShimmer" });
+  const progressTooltipTime = el("span", { id: "progressTooltipTime" });
 
-  // Hidden video used only to seek and capture thumbnail frames
-  const thumbVideo = document.createElement("video");
-  thumbVideo.muted = true;
-  thumbVideo.preload = "metadata";
-  thumbVideo.style.display = "none";
+  // Hidden video used to display thumbnail frames directly
+  const thumbVideo = el(
+    "video",
+    {
+      muted: true,
+      preload: "auto", // Signals Chrome/Edge to fetch streams immediately
+      playsInline: true,
+      // crossOrigin: "anonymous", // Essential for cross-origin hosting
+    },
+    {
+      width: "160px",
+      height: "90px",
+      objectFit: "cover", // Forces the video to frame perfectly like a canvas without stretching
+      display: "block",
+      backgroundColor: "#000000", // Solid dark baseline backdrop
+    },
+  );
+
+  const progressTooltip = el(
+    "div",
+    { id: "progressTooltip" },
+    { display: "none" },
+    [thumbVideo, thumbShimmer, progressTooltipTime],
+  );
+  const muteButton = el("button", { id: "muteButton", "aria-label": "Mute" });
+  muteButton.append(getIcon("volumeHigh"));
+
+  const volumeSlider = el("input", {
+    id: "volumeSlider",
+    type: "range",
+    min: 0,
+    max: 1,
+    step: 0.01,
+    value: 1,
+    "aria-label": "Volume",
+  });
+
+  // Create Quality Button
+  const qualityButton = el(
+    "button",
+    { id: "qualityButton", textContent: "Auto" },
+    sources.length <= 1 ? { display: "none" } : null,
+  );
+
+  // Create Quality Menu Container
+  const qualityMenu = el("div", { id: "qualityMenu", className: "hidden" });
+
+  // Create Speed Button
+  const speedButton = el("button", { id: "speedButton", textContent: "1×" });
+
+  // Create Speed Menu
+  const speedMenu = el("div", { id: "speedMenu", className: "hidden" });
+
+  const SPEED_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+  // Handle thumbnail rendering lifecycle natively on the video element
   thumbVideo.addEventListener("seeking", () => {
-    thumbShimmer.style.display = "block";
+    Object.assign(thumbShimmer.style, { display: "block" });
   });
+
   thumbVideo.addEventListener("seeked", () => {
-    thumbCtx.drawImage(thumbVideo, 0, 0, 160, 90);
-    thumbShimmer.style.display = "none";
+    Object.assign(thumbShimmer.style, { display: "none" });
   });
-  playerWrapper.appendChild(thumbVideo);
 
-  const muteButton = document.createElement("button");
-  muteButton.id = "muteButton";
-  muteButton.setAttribute("aria-label", "Mute");
-  muteButton.replaceChildren(getIcon("volumeHigh"));
-
-  const volumeSlider = document.createElement("input");
-  volumeSlider.id = "volumeSlider";
-  volumeSlider.type = "range";
-  volumeSlider.setAttribute("aria-label", "Volume");
-  volumeSlider.min = 0;
-  volumeSlider.max = 1;
-  volumeSlider.step = 0.01;
-  volumeSlider.value = 1;
   // Restore saved volume preference from previous session
   try {
     const _sv = parseFloat(localStorage.getItem("wdPlayer:volume"));
@@ -1251,67 +1307,68 @@
       video.volume = _sv;
       volumeSlider.value = _sv;
     }
-    if (localStorage.getItem("wdPlayer:muted") === "1") video.muted = true;
+    if (localStorage.getItem("wdPlayer:muted") === "1") {
+      video.muted = true;
+    }
   } catch (_) {}
 
-  // Create Quality Button
-  const qualityButton = document.createElement("button");
-  qualityButton.id = "qualityButton";
-  qualityButton.textContent = "Auto";
-  if (sources.length <= 1) qualityButton.style.display = "none";
-
-  // Create Quality Menu Container
-  const qualityMenu = document.createElement("div");
-  qualityMenu.id = "qualityMenu";
-  qualityMenu.classList.add("hidden");
-
-  // Create Speed Button
-  const speedButton = document.createElement("button");
-  speedButton.id = "speedButton";
-  speedButton.textContent = "1\u00d7";
-
-  // Create Speed Menu
-  const speedMenu = document.createElement("div");
-  speedMenu.id = "speedMenu";
-  speedMenu.classList.add("hidden");
-
-  const SPEED_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
-
   const updateSpeedLabel = () => {
-    speedButton.textContent = `${video.playbackRate}\u00d7`;
+    speedButton.textContent = `${video.playbackRate}×`;
   };
 
   const populateSpeedMenu = () => {
     speedMenu.replaceChildren();
+    const fragment = document.createDocumentFragment();
+
     SPEED_RATES.forEach((rate) => {
-      const btn = document.createElement("button");
-      btn.classList.add("subtitle-option");
-      if (video.playbackRate === rate) btn.classList.add("active");
-      btn.textContent = rate === 1 ? "Normal" : `${rate}\u00d7`;
+      const classes = [
+        "subtitle-option",
+        video.playbackRate === rate ? "active" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      const btn = el("button", {
+        className: classes,
+        textContent: rate === 1 ? "Normal" : `${rate}×`,
+      });
+
       btn.addEventListener("click", () => {
         video.playbackRate = rate;
         updateSpeedLabel();
         populateSpeedMenu();
         speedMenu.classList.add("hidden");
       });
-      speedMenu.appendChild(btn);
+
+      fragment.append(btn);
     });
+
+    speedMenu.append(fragment);
   };
 
   speedButton.addEventListener("click", (e) => {
     e.stopPropagation();
+
+    const isOpen = speedMenu.classList.contains("hidden");
+
+    if (typeof closeAllMenus === "function") {
+      closeAllMenus();
+    } else {
+      [qualityMenu, subtitleMenu].forEach((m) => m?.classList.add("hidden"));
+    }
+
     populateSpeedMenu();
-    speedMenu.classList.toggle("hidden");
-    if (!speedMenu.className) {
+
+    if (isOpen) {
+      speedMenu.classList.remove("hidden");
+    }
+
+    if (speedMenu.classList.length === 0) {
       speedMenu.removeAttribute("class");
     }
-    subtitleMenu.classList.add("hidden");
-    qualityMenu.classList.add("hidden");
-    const audioSelectMenu = document.getElementById("audioSelectMenu");
-    if (audioSelectMenu) {
-      audioSelectMenu.classList.add("hidden");
-    }
   });
+
+  playerWrapper.append(resumeToast, bigPlayButton, progressTooltip, controls);
 
   // Auto mode state
   let isAutoMode = false;
@@ -1853,14 +1910,11 @@
   );
 
   // Subtitle, quality, and speed menus are absolutely positioned inside the player wrapper
-  playerWrapper.appendChild(subtitleMenu);
-  playerWrapper.appendChild(qualityMenu);
-  playerWrapper.appendChild(speedMenu);
+  playerWrapper.append(subtitleMenu, qualityMenu, speedMenu);
   updateSubtitleAvailability();
 
   // Custom tooltip
-  const playerTooltip = document.createElement("div");
-  playerTooltip.id = "playerTooltip";
+  const playerTooltip = el("div", { id: "playerTooltip" });
   playerWrapper.appendChild(playerTooltip);
 
   const _tooltipEntries = [
@@ -1928,44 +1982,51 @@
   // Format seconds as [h:]mm:ss; pass forceHours=true to always include the hour component
   const formatTime = (seconds, forceHours = false) => {
     const h = Math.floor(seconds / 3600);
-    const min = Math.floor((seconds % 3600) / 60);
-    const sec = Math.floor(seconds % 60);
+    const min = String(Math.floor((seconds % 3600) / 60));
+    const sec = String(Math.floor(seconds % 60)).padStart(2, "0");
+
     if (h > 0 || forceHours) {
-      return `${h}:${min < 10 ? "0" : ""}${min}:${sec < 10 ? "0" : ""}${sec}`;
+      return `${h}:${min.padStart(2, "0")}:${sec}`;
     }
-    return `${min}:${sec < 10 ? "0" : ""}${sec}`;
+    return `${min}:${sec}`;
   };
 
   // Sync big button and play button icons based on video state
   const updateUIState = () => {
     const isPaused = video.paused;
+
     playButton.replaceChildren(getIcon(isPaused ? "play" : "pause"));
     playButton.setAttribute("aria-label", isPaused ? "Play" : "Pause");
-    bigPlayButton.style.display = isPaused ? "flex" : "none";
+
+    // Quick and clean style update using Object.assign for consistency
+    Object.assign(bigPlayButton.style, {
+      display: isPaused ? "flex" : "none",
+    });
   };
 
-  // Toggle play/pause; video.play() returns a Promise so update UI after it resolves
-  const playPauseVideo = () => {
-    if (video.paused) {
-      video
-        .play()
-        .then(updateUIState)
-        .catch((err) => console.error("Playback failed:", err));
-    } else {
-      video.pause();
-      updateUIState();
+  // Toggle play/pause using clean async/await syntax to handle the video promise
+  const playPauseVideo = async () => {
+    try {
+      if (video.paused) {
+        await video.play();
+      } else {
+        video.pause();
+      }
+      updateUIState(); // Runs right away on pause, and immediately after play promise resolves
+    } catch (err) {
+      console.error("Playback failed:", err);
     }
   };
 
-  // Toggle fullscreen mode for the player
+  // Toggle fullscreen mode for the player using modern clean methods
   const toggleFullScreen = () => {
     if (LOGO_ENABLED) repositionLogo();
+
     if (!document.fullscreenElement) {
-      if (playerWrapper.requestFullscreen) playerWrapper.requestFullscreen();
-      else if (playerWrapper.webkitRequestFullscreen)
-        playerWrapper.webkitRequestFullscreen();
+      // Modern optional chaining syntax replaces heavy browser prefix blocks (like webkit)
+      playerWrapper.requestFullscreen?.();
     } else {
-      if (document.exitFullscreen) document.exitFullscreen();
+      document.exitFullscreen?.();
     }
   };
 
@@ -1998,7 +2059,8 @@
     } catch (_) {}
   });
   // run on resize logo if LOGO is enabled
-  if (LOGO_ENABLED) window.addEventListener("resize", repositionLogo);
+  if (LOGO_ENABLED)
+    window.addEventListener("resize", repositionLogo, { passive: true });
 
   // Show buffering spinner when video is waiting/buffering
   // Debounced: only show spinner if buffering lasts longer than 300ms (avoids flash on seeks)
@@ -2079,17 +2141,22 @@
       progressBar.value = (video.currentTime / video.duration) * 100;
       updateRangeValue(progressBar);
     }
+
     const _longVideo = video.duration >= 3600;
     timerDisplay.textContent = `${formatTime(video.currentTime, _longVideo)} / ${formatTime(video.duration)}`;
+
     // Save position every 5 seconds
     const now = video.currentTime;
     if (now - lastSaveTime >= 5) {
       lastSaveTime = now;
       try {
         localStorage.setItem(resumeKey, now);
-      } catch (_) {}
+      } catch (_) {
+        // Privacy safeguard for blocked localstorage contexts
+      }
     }
   });
+
   // Show thumbnail + time tooltip on progress bar hover
   progressBar.addEventListener("mousemove", (e) => {
     if (!video.duration) return;
@@ -2101,9 +2168,8 @@
     if (!thumbVideo.src && !thumbDashInstance && !thumbHlsInstance) {
       // CASE 1: Check if the source target points to a DASH stream layout (.mpd manifest)
       if (currentEntry.src.includes(".mpd") && window.dashjs) {
-        if (thumbDashInstance) {
-          thumbDashInstance.destroy();
-        }
+        if (thumbDashInstance) thumbDashInstance.destroy();
+
         thumbDashInstance = window.dashjs.MediaPlayer().create();
         thumbDashInstance.updateSettings({
           streaming: {
@@ -2125,9 +2191,7 @@
         // Critical wake-up buffer trigger for dash.js
         thumbVideo
           .play()
-          .then(() => {
-            thumbVideo.pause();
-          })
+          .then(() => thumbVideo.pause())
           .catch(() => {});
 
         // CASE 2: Check if the source target points to an HLS stream layout (.m3u8 manifest)
@@ -2136,9 +2200,7 @@
         window.Hls &&
         window.Hls.isSupported()
       ) {
-        if (thumbHlsInstance) {
-          thumbHlsInstance.destroy();
-        }
+        if (thumbHlsInstance) thumbHlsInstance.destroy();
 
         // Initialize a miniature auxiliary hls.js player instance specifically for the timeline thumbnails
         thumbHlsInstance = new window.Hls({
@@ -2160,9 +2222,7 @@
          */
         thumbVideo
           .play()
-          .then(() => {
-            thumbVideo.pause();
-          })
+          .then(() => thumbVideo.pause())
           .catch(() => {});
       } else {
         // CASE 3: Fallback bind source directly for vanilla progressive MP4 configurations
@@ -2170,18 +2230,21 @@
       }
     }
 
+    // Calculate hover ratio and time position over the progress track
     const rect = progressBar.getBoundingClientRect();
     const ratio = Math.max(
       0,
       Math.min(1, (e.clientX - rect.left) / rect.width),
     );
     const hoverTime = ratio * video.duration;
+
+    // Synchronize text label safely
     progressTooltipTime.textContent = formatTime(
       hoverTime,
       video.duration >= 3600,
     );
 
-    // Throttle seeks: only seek if hovered time changed by more than 0.5s
+    // Throttle seeks: only seek if hovered time changed by more than 0.5s to save CPU cycles
     if (Math.abs(hoverTime - lastThumbSeekTime) > 0.5) {
       lastThumbSeekTime = hoverTime;
 
@@ -2192,31 +2255,36 @@
       if (thumbDashInstance) {
         thumbDashInstance.seek(hoverTime); // Direct dash.js controller seek execution
       } else {
-        thumbVideo.currentTime = hoverTime; // Native assignment works fine for MP4 and hls.js attachments
+        thumbVideo.currentTime = hoverTime; // Native assignment works flawlessly for MP4 and hls.js attachments
       }
     }
 
-    // Position tooltip centred above hover point, clamped inside the player
+    // Position tooltip centred above hover point, clamped inside the player bounds
     const playerRect = playerWrapper.getBoundingClientRect();
     const rawLeft = e.clientX - playerRect.left;
-    const half = 80; // half of canvas width (160px)
+    const half = 80; // Half of tooltip width (160px)
     const clampedLeft = Math.max(
       half,
       Math.min(playerRect.width - half, rawLeft),
     );
-    progressTooltip.style.left = clampedLeft + "px";
-    progressTooltip.style.display = "flex";
+
+    Object.assign(progressTooltip.style, {
+      left: `${clampedLeft}px`,
+      display: "flex",
+    });
   });
 
+  // Collapse tooltip instantly when mouse leaves track bounds
   progressBar.addEventListener("mouseleave", () => {
-    progressTooltip.style.display = "none";
+    Object.assign(progressTooltip.style, { display: "none" });
   });
 
-  // Seek video when progress bar is changed
+  // Seek video dynamically when progress bar input range element values change
   progressBar.addEventListener("input", () => {
     const wasEnded = video.ended;
     video.currentTime = (progressBar.value / 100) * video.duration;
     updateRangeValue(progressBar);
+
     if (wasEnded) {
       video
         .play()
@@ -2296,106 +2364,109 @@
   // ArrowRight/Left = seek 5s, ArrowUp/Down = volume 10%
   document.addEventListener("keydown", (e) => {
     if (document.activeElement.tagName === "INPUT") return;
-    switch (e.code) {
+
+    const { code } = e;
+
+    switch (code) {
       case "Space":
         e.preventDefault();
         playPauseVideo();
         break;
+
       case "KeyF":
         toggleFullScreen();
         break;
+
       case "KeyM":
         muteButton.click();
         break;
-      case "KeyC":
-        if (getSubtitleMenuEntries().length) {
-          const nativeTracks = video.textTracks;
-          const menuEntries = getSubtitleMenuEntries();
-          const currentIdx = menuEntries.findIndex(
-            ({
-              label,
-              src,
-              type,
-              nativeTrackIndex,
-              dashTrackIndex,
-              hlsIndex,
-            }) => {
-              if (type === "ass") return activeAssTrackSrc === src;
-              if (type === "dash")
-                return getActiveDashTrackUiIndex() === dashTrackIndex;
-              if (type === "hls") return activeHlsSubtitleIndex === hlsIndex;
-              if (nativeTrackIndex != null) {
-                return nativeTracks[nativeTrackIndex]?.mode === "showing";
-              }
-              const nt = Array.from(nativeTracks).find(
-                (t) => t.label === label,
-              );
-              return !!nt && nt.mode === "showing";
-            },
-          );
-          const nextIdx = currentIdx + 1;
-          if (nextIdx >= menuEntries.length) {
-            disableAllNativeTracks();
-            destroyOctopus();
-            showCcToast("Off");
-          } else {
-            const next = menuEntries[nextIdx];
-            showCcToast(`${next.label} \u00b7 ${next.type.toUpperCase()}`);
-            if (next.type === "ass") {
-              loadAssTrack(next.src);
-            } else if (next.type === "dash") {
-              destroyOctopus();
-              activateDashTrackByIndex(next.dashTrackIndex, next.dashApiIndex);
-              setTimeout(updateCcButtonState, 0);
-            } else if (next.type === "hls") {
-              destroyOctopus();
-              hlsInstance.subtitleDisplay = true;
-              hlsInstance.subtitleTrack = next.hlsIndex;
-            } else {
-              destroyOctopus();
-              for (let i = 0; i < video.textTracks.length; i++) {
-                const t = video.textTracks[i];
-                t.mode = (
-                  next.nativeTrackIndex != null
-                    ? i === next.nativeTrackIndex
-                    : t.label === next.label
-                )
-                  ? "showing"
-                  : "disabled";
-              }
-            }
-          }
-          updateCcButtonState();
-        }
-        break;
-      case "KeyQ":
-        if (dashInstance && dashQualityLevels.length >= 1) {
-          // Cycle DASH quality: Auto → highest → ... → lowest → Auto
-          if (dashQualityAuto) {
-            // Switch to highest quality
-            const sorted = [...dashQualityLevels].sort(
-              (a, b) => b.bitrate - a.bitrate,
+
+      case "KeyC": {
+        const menuEntries = getSubtitleMenuEntries();
+        if (!menuEntries.length) break;
+
+        const nativeTracks = video.textTracks;
+        const currentIdx = menuEntries.findIndex(
+          ({
+            label,
+            src,
+            type,
+            dashTrackIndex,
+            hlsIndex,
+            nativeTrackIndex,
+          }) => {
+            if (type === "ass") return activeAssTrackSrc === src;
+            if (type === "dash")
+              return getActiveDashTrackUiIndex() === dashTrackIndex;
+            if (type === "hls") return activeHlsSubtitleIndex === hlsIndex;
+            if (nativeTrackIndex != null)
+              return nativeTracks[nativeTrackIndex]?.mode === "showing";
+
+            return (
+              Array.from(nativeTracks).find((t) => t.label === label)?.mode ===
+              "showing"
             );
-            dashQualityAuto = false;
+          },
+        );
+
+        const nextIdx = currentIdx + 1;
+
+        if (nextIdx >= menuEntries.length) {
+          disableAllNativeTracks();
+          destroyOctopus();
+          showCcToast("Off");
+        } else {
+          const next = menuEntries[nextIdx];
+          showCcToast(`${next.label} · ${next.type.toUpperCase()}`); // Modern template literal
+          destroyOctopus(); // Clean abstract layer canvas clear
+
+          if (next.type === "ass") {
+            loadAssTrack(next.src);
+          } else if (next.type === "dash") {
+            activateDashTrackByIndex(next.dashTrackIndex, next.dashApiIndex);
+            setTimeout(updateCcButtonState, 0);
+          } else if (next.type === "hls") {
+            hlsInstance.subtitleDisplay = true;
+            hlsInstance.subtitleTrack = next.hlsIndex;
+          } else {
+            Array.from(nativeTracks).forEach((t, i) => {
+              t.mode = (
+                next.nativeTrackIndex != null
+                  ? i === next.nativeTrackIndex
+                  : t.label === next.label
+              )
+                ? "showing"
+                : "disabled";
+            });
+          }
+        }
+        updateCcButtonState();
+        break;
+      }
+
+      case "KeyQ": {
+        if (dashInstance && qualityState.dashLevels.length >= 1) {
+          const sorted = [...qualityState.dashLevels].sort(
+            (a, b) => b.bitrate - a.bitrate,
+          );
+
+          if (qualityState.dashAuto) {
+            qualityState.dashAuto = false;
             dashInstance.updateSettings({
               streaming: { abr: { autoSwitchBitrate: { video: false } } },
             });
             dashInstance.setQualityFor("video", sorted[0].qualityIndex, true);
           } else {
-            const sorted = [...dashQualityLevels].sort(
-              (a, b) => b.bitrate - a.bitrate,
-            );
-            let curIdx;
+            let curIdx = -1;
             try {
               curIdx = dashInstance.getQualityFor("video");
-            } catch {
-              curIdx = -1;
-            }
+            } catch (_) {}
+
             const pos = sorted.findIndex((l) => l.qualityIndex === curIdx);
             const next = pos + 1;
+
             if (next >= sorted.length) {
-              // Wrap back to Auto
-              dashQualityAuto = true;
+              qualityState.dashAuto = true;
               dashInstance.updateSettings({
                 streaming: { abr: { autoSwitchBitrate: { video: true } } },
               });
@@ -2408,23 +2479,22 @@
             }
           }
           updateQualityLabel();
-        } else if (hlsInstance && hlsQualityLevels.length >= 1) {
-          // Cycle HLS quality: Auto → highest → ... → lowest → Auto
-          if (hlsQualityAuto) {
-            const sorted = [...hlsQualityLevels].sort(
-              (a, b) => b.bitrate - a.bitrate,
-            );
-            hlsQualityAuto = false;
+        } else if (hlsInstance && qualityState.hlsLevels.length >= 1) {
+          const sorted = [...qualityState.hlsLevels].sort(
+            (a, b) => b.bitrate - a.bitrate,
+          );
+
+          if (qualityState.hlsAuto) {
+            qualityState.hlsAuto = false;
             hlsInstance.currentLevel = sorted[0].qualityIndex;
           } else {
-            const sorted = [...hlsQualityLevels].sort(
-              (a, b) => b.bitrate - a.bitrate,
+            const pos = sorted.findIndex(
+              (l) => l.qualityIndex === hlsInstance.currentLevel,
             );
-            const curIdx = hlsInstance.currentLevel;
-            const pos = sorted.findIndex((l) => l.qualityIndex === curIdx);
             const next = pos + 1;
+
             if (next >= sorted.length) {
-              hlsQualityAuto = true;
+              qualityState.hlsAuto = true;
               hlsInstance.currentLevel = -1;
             } else {
               hlsInstance.currentLevel = sorted[next].qualityIndex;
@@ -2435,26 +2505,25 @@
           if (isAutoMode) {
             stopAutoMode();
             switchSource(0);
-            updateQualityLabel();
           } else {
             const next = activeSourceIndex + 1;
-            if (next >= sources.length) {
-              startAutoMode();
-            } else {
-              switchSource(next);
-              updateQualityLabel();
-            }
+            next >= sources.length ? startAutoMode() : switchSource(next);
           }
+          updateQualityLabel();
         }
         break;
+      }
+
       case "ArrowRight":
         e.preventDefault();
         video.currentTime = Math.min(video.duration, video.currentTime + 5);
         break;
+
       case "ArrowLeft":
         e.preventDefault();
         video.currentTime = Math.max(0, video.currentTime - 5);
         break;
+
       case "ArrowUp":
         e.preventDefault();
         if (video.muted) {
@@ -2463,76 +2532,79 @@
         } else {
           video.volume = Math.min(
             1,
-            parseFloat((video.volume + 0.1).toFixed(2)),
+            parseFloat((video.volume + 0.1).toFixed(1)),
           );
         }
         break;
+
       case "ArrowDown":
         e.preventDefault();
-        video.volume = Math.max(0, parseFloat((video.volume - 0.1).toFixed(2)));
+        video.volume = Math.max(0, parseFloat((video.volume - 0.1).toFixed(1)));
         break;
+
       case "Comma":
+      case "Period": {
         e.preventDefault();
-        {
-          const ci = SPEED_RATES.indexOf(video.playbackRate);
-          if (ci > 0) {
-            video.playbackRate = SPEED_RATES[ci - 1];
-            showSpeedToast(SPEED_RATES[ci - 1]);
-            updateSpeedLabel();
-          }
+        const ci = SPEED_RATES.indexOf(video.playbackRate);
+        if (ci === -1) break;
+
+        const nextIdx = code === "Comma" ? ci - 1 : ci + 1;
+        if (SPEED_RATES[nextIdx] !== undefined) {
+          video.playbackRate = SPEED_RATES[nextIdx];
+          showSpeedToast(SPEED_RATES[nextIdx]);
+          updateSpeedLabel();
         }
         break;
-      case "Period":
-        e.preventDefault();
-        {
-          const ci = SPEED_RATES.indexOf(video.playbackRate);
-          if (ci !== -1 && ci < SPEED_RATES.length - 1) {
-            video.playbackRate = SPEED_RATES[ci + 1];
-            showSpeedToast(SPEED_RATES[ci + 1]);
-            updateSpeedLabel();
-          }
-        }
-        break;
+      }
+
       default:
-        if (e.code.startsWith("Digit") && video.duration) {
+        if (code.startsWith("Digit") && video.duration) {
           e.preventDefault();
-          video.currentTime =
-            (parseInt(e.code.replace("Digit", ""), 10) / 10) * video.duration;
+          const digit = parseInt(code.replace("Digit", ""), 10);
+          video.currentTime = (digit / 10) * video.duration;
         }
     }
   });
 
   // --- Fullscreen controls & cursor auto-hide logic ---
 
-  const shield = document.createElement("div");
-  shield.id = "controls-trigger-shield";
+  const shield = el("div", { id: "controls-trigger-shield" });
   playerWrapper.insertBefore(shield, controls);
 
   let controlsHideTimeout = null;
 
   function showControls() {
-    controls.style.opacity = 1;
-    controls.style.pointerEvents = "auto";
+    // Apply multiple interactive styles to controls layout at once cleanly
+    Object.assign(controls.style, {
+      opacity: 1,
+      pointerEvents: "auto",
+    });
+
     playerWrapper.style.cursor = "";
     clearTimeout(controlsHideTimeout);
   }
 
   function hideControls() {
     if (document.fullscreenElement === playerWrapper && !video.paused) {
-      controls.style.opacity = 0;
-      controls.style.pointerEvents = "none";
+      // Apply multiple visual styles to controls layout at once safely
+      Object.assign(controls.style, {
+        opacity: 0,
+        pointerEvents: "none",
+      });
+
       playerWrapper.style.cursor = "none";
     }
   }
 
-  function scheduleControlsHide() {
+  const scheduleControlsHide = () => {
     clearTimeout(controlsHideTimeout);
     controlsHideTimeout = setTimeout(hideControls, 2000);
-  }
+  };
 
   // Show controls and restart hide timer on mouse move (fullscreen only)
   // Change playerWrapper to the shield element to fix mouse movements in fullscreen mode
   shield.addEventListener("mousemove", () => {
+    // Short-circuit guard: only reveal and schedule hide if the player is currently in fullscreen mode
     if (document.fullscreenElement === playerWrapper) {
       showControls();
       scheduleControlsHide();
@@ -2566,11 +2638,10 @@
       toggleFullScreen();
     }
   });
-
   // Handle touch for mobile and tablet users (Single Tap and Double Tap)
   let lastTap = 0;
   shield.addEventListener("touchend", (e) => {
-    const currentTime = new Date().getTime();
+    const currentTime = Date.now(); // Faster and cleaner alternative to new Date().getTime()
     const tapLength = currentTime - lastTap;
 
     clearTimeout(clickTimeout);
@@ -2593,9 +2664,13 @@
 
   // Schedule hide when video starts playing (fullscreen only) + hide resume toast
   video.addEventListener("play", () => {
-    if (LOGO_ENABLED) logoElement.classList.add("active");
+    // Smoothly toggle active class based on your configuration variable
+    logoElement.classList.toggle("active", LOGO_ENABLED);
+
     if (document.fullscreenElement === playerWrapper) scheduleControlsHide();
-    resumeToast.style.display = "none";
+
+    // Consistent inline style assignment approach
+    Object.assign(resumeToast.style, { display: "none" });
   });
 
   // Always show controls when paused
@@ -2607,38 +2682,52 @@
   /// Dash / HLS multi audio code - Call only when multiple tracks exist
   const multiAudio = () => {
     // UI Safeguard: Evict any existing button/menu instances from previous stream loads to avoid duplicates
-    const oldBtn = document.getElementById("audioSelectButton");
-    const oldMenu = document.getElementById("audioSelectMenu");
-    if (oldBtn) oldBtn.remove();
-    if (oldMenu) oldMenu.remove();
+    document.getElementById("audioSelectButton")?.remove();
+    document.getElementById("audioSelectMenu")?.remove();
 
     // Create the interactive mic trigger element node
-    const audioSelect = document.createElement("button");
-    audioSelect.id = "audioSelectButton";
-    audioSelect.setAttribute("aria-label", "Audio");
-    audioSelect.replaceChildren(getIcon("mic"));
+    const audioSelect = el("button", {
+      id: "audioSelectButton",
+      "aria-label": "Audio",
+    });
+    audioSelect.append(getIcon("mic"));
 
     // Inject structural node positionally right before the Subtitle (CC) element if active
     if (ccButton && ccButton.parentNode === controls) {
-      controls.insertBefore(audioSelect, ccButton);
+      ccButton.before(audioSelect); // Modern and clean alternative to insertBefore
     } else {
-      controls.appendChild(audioSelect);
+      controls.append(audioSelect);
     }
 
     // Generate the clean dropdown menu wrapper inside the root player block
-    const audioSelectMenu = document.createElement("div");
-    audioSelectMenu.id = "audioSelectMenu";
-    audioSelectMenu.classList.add("hidden");
-    playerWrapper.appendChild(audioSelectMenu);
+    const audioSelectMenu = el("div", {
+      id: "audioSelectMenu",
+      className: "hidden",
+    });
+    playerWrapper.append(audioSelectMenu);
 
     // Toggle dropdown menu expansion on explicit click events
     audioSelect.addEventListener("click", (e) => {
       e.stopPropagation(); // Essential: Stops event from bubbling to video container and pausing playback
-      audioSelectMenu.classList.toggle("hidden");
-      qualityMenu.classList.add("hidden");
-      subtitleMenu.classList.add("hidden");
-      speedMenu.classList.add("hidden");
-      if (!audioSelectMenu.className) {
+
+      const isOpen = audioSelectMenu.classList.contains("hidden");
+
+      // Safely close all player dropdowns first using the global handler
+      if (typeof closeAllMenus === "function") {
+        closeAllMenus();
+      } else {
+        [qualityMenu, subtitleMenu, speedMenu].forEach((m) =>
+          m?.classList.add("hidden"),
+        );
+      }
+
+      // Open only this menu if it was closed before clicking
+      if (isOpen) {
+        audioSelectMenu.classList.remove("hidden");
+      }
+
+      // Clean up empty class attribute safely
+      if (audioSelectMenu.classList.length === 0) {
         audioSelectMenu.removeAttribute("class");
       }
     });
@@ -2656,23 +2745,22 @@
   };
 
   // Custom right-click context menu with player info
-  const contextMenu = document.createElement("div");
-  contextMenu.id = "playerContextMenu";
-  contextMenu.classList.add("hidden");
-  playerWrapper.appendChild(contextMenu);
+  const contextMenu = el("div", {
+    id: "playerContextMenu",
+    className: "hidden",
+  });
+  playerWrapper.append(contextMenu);
 
   const hideContextMenu = () => contextMenu.classList.add("hidden");
 
   playerWrapper.addEventListener("contextmenu", (e) => {
     e.preventDefault();
-    // If menu is already visible, hide it
-    if (!contextMenu.classList.contains("hidden")) {
-      hideContextMenu();
-      return;
-    }
+
+    // If menu is already visible, hide it and exit
+    if (!contextMenu.classList.contains("hidden")) return hideContextMenu();
 
     const rows = [
-      ["wdPlayer", "v1.2"],
+      ["wdPlayer", "v1.3"],
       ...(sources.length > 1
         ? [
             [
@@ -2688,13 +2776,14 @@
             [
               "Subtitles",
               (() => {
-                const e = getActiveSubtitleEntry();
-                return e ? `${e.label} (${e.type.toUpperCase()})` : "None";
+                const entry = getActiveSubtitleEntry();
+                return entry
+                  ? `${entry.label} (${entry.type.toUpperCase()})`
+                  : "None";
               })(),
             ],
           ]
         : []),
-
       [
         "Resolution",
         video.videoWidth ? `${video.videoWidth}×${video.videoHeight}` : "—",
@@ -2702,39 +2791,50 @@
       ["Speed", video.playbackRate === 1 ? "Normal" : `${video.playbackRate}×`],
       [
         "Volume",
-        `${video.muted || video.volume === 0 ? "Muted" : `${Math.round(video.volume * 100)}%`}`,
+        video.muted || video.volume === 0
+          ? "Muted"
+          : `${Math.round(video.volume * 100)}%`,
       ],
     ];
 
+    // 1. Clear old menu content
     contextMenu.replaceChildren();
+
+    // 2. Build rows in memory using DocumentFragment (Super fast rendering)
+    const fragment = document.createDocumentFragment();
     rows.forEach(([key, val]) => {
-      const row = document.createElement("div");
-      row.className = "ctx-row";
-      const k = document.createElement("span");
-      k.className = "ctx-key";
-      k.textContent = key;
-      const v = document.createElement("span");
-      v.className = "ctx-val";
-      v.textContent = val;
-      row.appendChild(k);
-      row.appendChild(v);
-      contextMenu.appendChild(row);
+      const row = el("div", { className: "ctx-row" }, null, [
+        el("span", { className: "ctx-key", textContent: key }),
+        el("span", { className: "ctx-val", textContent: val }),
+      ]);
+      fragment.append(row);
     });
+
+    // 3. Inject all generated rows into the DOM at once
+    contextMenu.append(fragment);
 
     // Position inside player bounds
     const pr = playerWrapper.getBoundingClientRect();
     let x = e.clientX - pr.left;
     let y = e.clientY - pr.top;
+
+    // Show menu and safely remove empty class attribute if needed
     contextMenu.classList.remove("hidden");
-    if (!contextMenu.className) {
+    if (contextMenu.classList.length === 0) {
       contextMenu.removeAttribute("class");
     }
+
+    // Measure menu dimensions and clamp positions within bounds
     const mw = contextMenu.offsetWidth;
     const mh = contextMenu.offsetHeight;
     if (x + mw > pr.width) x = pr.width - mw - 4;
     if (y + mh > pr.height) y = pr.height - mh - 4;
-    contextMenu.style.left = x + "px";
-    contextMenu.style.top = y + "px";
+
+    // Apply exact positioning values cleanly in one shot
+    Object.assign(contextMenu.style, {
+      left: `${x}px`,
+      top: `${y}px`,
+    });
   });
 
   playerWrapper.addEventListener("click", hideContextMenu);
