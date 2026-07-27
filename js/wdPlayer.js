@@ -1354,7 +1354,9 @@
     if (typeof closeAllMenus === "function") {
       closeAllMenus();
     } else {
-      [qualityMenu, subtitleMenu].forEach((m) => m?.classList.add("hidden"));
+      [qualityMenu, subtitleMenu, speedMenu].forEach((m) =>
+        m?.classList.add("hidden"),
+      );
     }
 
     populateSpeedMenu();
