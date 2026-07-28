@@ -41,7 +41,7 @@ const addSource = (label = "", src = "", type = "video/mp4") => {
   labelInput.value = label;
   labelInput.setAttribute("data-key", "label");
   labelInput.setAttribute("aria-label", "Source label");
-
+  labelInput.name = "SourceLabel";
   labelField.append(labelCol, labelInput);
 
   // --- (URL) ---
@@ -59,7 +59,7 @@ const addSource = (label = "", src = "", type = "video/mp4") => {
   urlInput.value = src;
   urlInput.setAttribute("data-key", "src");
   urlInput.setAttribute("aria-label", "Source URL");
-
+  urlInput.name = "url";
   urlField.append(urlCol, urlInput);
 
   // --- (Type Select) ---
@@ -74,7 +74,7 @@ const addSource = (label = "", src = "", type = "video/mp4") => {
   const typeSelect = document.createElement("select");
   typeSelect.setAttribute("data-key", "type");
   typeSelect.setAttribute("aria-label", "Source type");
-
+  typeSelect.name = "type";
   const optionsData = [
     { value: "video/mp4", text: "video/mp4" },
     { value: "video/webm", text: "video/webm" },
@@ -131,7 +131,7 @@ const addSub = (label = "", src = "", type = "vtt", srclang = "") => {
   labelInput.value = label;
   labelInput.setAttribute("data-key", "label");
   labelInput.setAttribute("aria-label", "Subtitle label");
-
+  labelInput.name = "SubtitleLabel";
   labelField.append(labelCol, labelInput);
 
   // --- (URL) ---
@@ -149,7 +149,7 @@ const addSub = (label = "", src = "", type = "vtt", srclang = "") => {
   urlInput.value = src;
   urlInput.setAttribute("data-key", "src");
   urlInput.setAttribute("aria-label", "Subtitle URL");
-
+  urlInput.name = "SubtilteUrl";
   urlField.append(urlCol, urlInput);
 
   // --- (Type Select) ---
@@ -164,7 +164,7 @@ const addSub = (label = "", src = "", type = "vtt", srclang = "") => {
   const typeSelect = document.createElement("select");
   typeSelect.setAttribute("data-key", "type");
   typeSelect.setAttribute("aria-label", "Subtitle type");
-
+  typeSelect.name = "SubtitleType";
   const optionsData = [
     { value: "vtt", text: "VTT" },
     { value: "ass", text: "ASS" },
@@ -198,7 +198,7 @@ const addSub = (label = "", src = "", type = "vtt", srclang = "") => {
   langInput.setAttribute("data-key", "srclang");
   langInput.maxLength = 10;
   langInput.setAttribute("aria-label", "Subtitle language code");
-
+  langInput.name = "SubtitlesLang";
   langField.append(langCol, langInput);
 
   // --- Remove Button ---

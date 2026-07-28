@@ -100,9 +100,17 @@
       <br />
     </main>
     <footer>
-      <p>wdPlayer &copy; 2026 &mdash; Lightweight HTML5 Video Player</p>
+      <p>
+        wdPlayer &copy; <span id="showYear"></span> &mdash; Lightweight HTML5
+        Video Player
+      </p>
     </footer>
 
     <script src="js/generator-min.js"></script>
+    <script>
+      const correctYear = new Date().getFullYear();
+      const placeHolder = document.getElementById("showYear");
+      placeHolder.textContent = correctYear;
+    </script>
   </body>
 </html>
